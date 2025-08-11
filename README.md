@@ -2,66 +2,41 @@
 
 A developer-first, fluent and flexible package for creating database backups in Laravel.
 
+---
+
 ## Installation
+
+Install the package via Composer:
 
 ```bash
 composer require aaix/laravel-easy-backups
 ```
 
-Publish the configuration file (optional):
+Next, publish the configuration file. This is optional but recommended.
 
 ```bash
 php artisan vendor:publish --provider="Aaix\LaravelEasyBackups\EasyBackupsServiceProvider" --tag="config"
 ```
 
-## Usage
+## A Quick Look
 
-Create a database backup with a simple, fluent API. The package automatically detects your database driver (MySQL, MariaDB, PostgreSQL, SQLite) and uses the correct tools.
+Laravel Easy Backups provides a fluent, chainable API to define your backup workflows directly in your Laravel application.
 
-### Basic Example
-
-This will back up the `mysql` database, compress the backup, save them to the `s3_backups` disk, and keep the last 10 remote backups.
+Here's a quick example of how to back up your primary database to an S3 disk while ensuring only the 10 most recent backups are
+kept.
 
 ```php
 use Aaix\LaravelEasyBackups\Facades\Backup;
 
-Backup::databases(['mysql'])
-    ->saveTo('s3_backups')
+Backup::create()
+    ->includeDatabases([config('database.default')])
+    ->saveTo('s3')
     ->compress()
     ->maxRemoteBackups(10)
     ->run();
 ```
 
-### Advanced Example with Callbacks and Queueing
+### Documentation
 
-Run a backup on a specific connection and queue, keep local copies, and execute logic before and after the job.
-
-```php
-use Aaix\LaravelEasyBackups\Facades\Backup;
-use Illuminate\Support\Facades\Log;
-
-Backup::databases(['mysql'])
-    ->saveTo('s3_backups')
-    ->keepLocal()
-    ->maxLocalBackups(3)
-    ->maxRemoteBackups(50)
-    ->before(fn(array $config) => Log::info('Starting backup...', $config))
-    ->after(fn(array $config) => Log::info('Backup finished.', $config))
-    ->onConnection('redis')
-    ->onQueue('long-running-jobs')
-    ->run();
-```
-
-### Overriding Storage Paths
-
-You can override the default storage paths for a specific job.
-
-```php
-use Aaix\LaravelEasyBackups\Facades\Backup;
-
-Backup::databases(['mysql', 'pgsql'])
-    ->saveTo('s3_archive')
-    ->setDatabaseLocalStorageDir('app/special_backups')
-    ->setDatabaseRemoteStorageDir('project_x_backups/')
-    ->run();
-```
+For the full documentation, including advanced features, common recipes, and detailed guides, please visit our full [documentation
+website](https://jonaaix.github.io/laravel-easy-backups).
