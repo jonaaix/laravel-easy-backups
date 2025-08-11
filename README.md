@@ -1,6 +1,21 @@
-# Laravel Easy Backups
+<p align="center">
+  <a href="https://github.com/jonaaix/laravel-easy-backups">
+    <img src="https://raw.githubusercontent.com/jonaaix/laravel-easy-backups/main/docs/static/img/logo2.png" alt="Laravel Easy Backups Logo" width="200">
+  </a>
+</p>
 
-A developer-first, fluent and flexible package for creating database backups in Laravel.
+<h1 align="center">Laravel Easy Backups</h1>
+
+<p align="center">
+A developer-first, fluent and flexible package for creating backups in Laravel.
+</p>
+
+<p align="center">
+  <a href="https://packagist.org/packages/aaix/laravel-easy-backups"><img src="https://img.shields.io/packagist/v/aaix/laravel-easy-backups.svg?style=flat-square" alt="Latest Version on Packagist"></a>
+  <a href="https://packagist.org/packages/aaix/laravel-easy-backups"><img src="https://img.shields.io/packagist/dt/aaix/laravel-easy-backups.svg?style=flat-square" alt="Total Downloads"></a>
+  <a href="https://github.com/jonaaix/laravel-easy-backups/actions/workflows/tests.yml"><img src="https://img.shields.io/github/actions/workflow/status/jonaaix/laravel-easy-backups/tests.yml?branch=main&label=tests&style=flat-square" alt="GitHub Actions"></a>
+  <a href="https://github.com/jonaaix/laravel-easy-backups/blob/main/LICENSE.md"><img src="https://img.shields.io/packagist/l/aaix/laravel-easy-backups.svg?style=flat-square" alt="License"></a>
+</p>
 
 ---
 
