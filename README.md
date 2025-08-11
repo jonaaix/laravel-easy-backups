@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://github.com/jonaaix/laravel-easy-backups">
-    <img src="https://raw.githubusercontent.com/jonaaix/laravel-easy-backups/main/docs/static/img/logo2.png" alt="Laravel Easy Backups Logo" width="200">
+    <img src="https://raw.githubusercontent.com/jonaaix/laravel-easy-backups/main/documentation/static/img/logo2.png" alt="Laravel Easy Backups Logo" width="200">
   </a>
 </p>
 
