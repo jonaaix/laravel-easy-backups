@@ -1,0 +1,60 @@
+# .github/workflows/run-tests.yml
+name: Run Tests
+
+on:
+    push: { }            # trigger on any push (branches & tags)
+    pull_request: { }    # trigger on any pull request
+    workflow_call: { }   # allow other workflows to call this one
+
+jobs:
+    test:
+        runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false # Run all jobs even if one fails
+            matrix:
+                # We explicitly define the test combinations.
+                # Each combination has a compatible set of Laravel, Testbench, and PHPUnit versions.
+                include:
+                    # Test Laravel 10
+                    -   laravel: 10.*
+                        php: 8.2
+                        testbench: 8.*
+                        phpunit: 10.*
+
+                    # Test Laravel 11
+                    -   laravel: 11.*
+                        php: 8.2
+                        testbench: 9.*
+                        phpunit: 11.*
+
+                    # Test Laravel 12
+                    -   laravel: 12.*
+                        php: 8.3
+                        testbench: 10.*
+                        phpunit: 12.*
+
+        name: P${{ matrix.php }} - L${{ matrix.laravel }}
+
+        steps:
+            -   name: Checkout code
+                uses: actions/checkout@v4
+
+            -   name: Setup PHP
+                uses: shivammathur/setup-php@v2
+                with:
+                    php-version: ${{ matrix.php }}
+                    extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite, bcmath, soap, intl, gd, exif, iconv
+                    coverage: none
+
+            -   name: Install Composer dependencies
+                run: |
+                    # Require framework, testbench, and phpunit versions for this matrix
+                    composer require "laravel/framework:${{ matrix.laravel }}" \
+                      "orchestra/testbench:${{ matrix.testbench }}" \
+                      "phpunit/phpunit:${{ matrix.phpunit }}" \
+                      --no-interaction --no-update --dev
+                    # Update dependencies to resolve any conflicts
+                    composer update --prefer-stable --prefer-dist --no-interaction --no-progress --with-all-dependencies
+
+            -   name: Execute PHPUnit tests
+                run: vendor/bin/phpunit

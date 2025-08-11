@@ -1,0 +1,14 @@
+{
+   "private": true,
+   "type": "module",
+   "scripts": {
+      "format-prettier": "prettier --write src/ tests/ database/ config/",
+      "prettier": "prettier"
+   },
+   "devDependencies": {
+      "@prettier/plugin-php": "^0.22.4",
+      "@shufo/prettier-plugin-blade": "^1.15.3",
+      "prettier": "^3.5.3",
+      "prettier-plugin-tailwindcss": "^0.6.11"
+   }
+}

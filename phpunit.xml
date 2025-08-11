@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/11.2/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+         cacheDirectory=".phpunit.cache">
+    <testsuites>
+        <testsuite name="Test Suite">
+            <directory suffix="Test.php">./tests</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory suffix=".php">./src</directory>
+        </include>
+    </source>
+    <php>
+        <env name="DB_CONNECTION_MYSQL" value="mysql_test"/>
+        <env name="DB_HOST_MYSQL" value="127.0.0.1"/>
+        <env name="DB_PORT_MYSQL" value="33061"/>
+        <env name="DB_DATABASE_MYSQL" value="test"/>
+        <env name="DB_USERNAME_MYSQL" value="root"/>
+        <env name="DB_PASSWORD_MYSQL" value="password"/>
+
+        <env name="DB_CONNECTION_MARIADB" value="mariadb_test"/>
+        <env name="DB_HOST_MARIADB" value="127.0.0.1"/>
+        <env name="DB_PORT_MARIADB" value="33062"/>
+        <env name="DB_DATABASE_MARIADB" value="test"/>
+        <env name="DB_USERNAME_MARIADB" value="root"/>
+        <env name="DB_PASSWORD_MARIADB" value="password"/>
+
+        <env name="DB_CONNECTION_PGSQL" value="pgsql_test"/>
+        <env name="DB_HOST_PGSQL" value="127.0.0.1"/>
+        <env name="DB_PORT_PGSQL" value="33063"/>
+        <env name="DB_DATABASE_PGSQL" value="test"/>
+        <env name="DB_USERNAME_PGSQL" value="user"/>
+        <env name="DB_PASSWORD_PGSQL" value="password"/>
+    </php>
+</phpunit>

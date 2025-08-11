@@ -1,0 +1,112 @@
+/**
+ * CSS files with the .module.css suffix will be treated as CSS modules
+ * and scoped locally.
+ */
+
+.heroBanner {
+  padding: 4rem 0;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.comparisonSection {
+  padding: 4rem 0;
+  background-color: var(--ifm-color-emphasis-100);
+}
+
+.comparisonTable {
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: var(--ifm-global-radius);
+  overflow: hidden;
+  margin-bottom: 3rem;
+}
+
+.comparisonRow {
+  display: grid;
+  grid-template-columns: 0.8fr 1.2fr 1fr 1fr;
+  border-bottom: 1px solid var(--ifm-color-emphasis-300);
+}
+
+.comparisonRow:last-child {
+  border-bottom: none;
+}
+
+.comparisonHeader, .comparisonCell {
+  padding: 0.75rem 1rem;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.comparisonHeader {
+  background-color: var(--ifm-color-emphasis-200);
+  font-weight: bold;
+}
+
+.comparisonHeader,
+.comparisonCell {
+  border-right: 1px solid var(--ifm-color-emphasis-300);
+}
+
+.comparisonHeader:last-child,
+.comparisonCell:last-child {
+  border-right: none;
+}
+
+.ownPackage {
+  background-color: #f0f2ff; /* A light, distinct lilac for light mode */
+}
+
+[data-theme='dark'] .ownPackage {
+  background-color: var(--ifm-color-primary-lighter); /* Keep the original for dark mode */
+}
+
+.packageName {
+  color: inherit;
+  font-weight: bold;
+}
+
+.separator {
+  border: 0;
+  border-top: 1px solid var(--ifm-color-emphasis-300);
+  margin: 0 auto 3rem;
+}
+
+.featureComparison {
+  margin-bottom: 2.5rem;
+}
+
+.featureComparison h4 {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.badge {
+  background-color: var(--ifm-color-primary);
+  color: white;
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--ifm-global-radius);
+  font-size: 0.8rem;
+  margin-right: 0.75rem;
+}
+
+@media screen and (max-width: 996px) {
+  .heroBanner {
+    padding: 2rem;
+  }
+
+  .tableContainer {
+    overflow-x: auto;
+  }
+
+  .comparisonTable {
+    min-width: 700px; /* Ensure table has a minimum width to scroll */
+  }
+}
+
+.buttons {
+   display: flex;
+   align-items: center;
+   justify-content: center;
+}

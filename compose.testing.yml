@@ -1,0 +1,31 @@
+services:
+    mysql_test:
+        image: mysql:8.0
+        ports:
+            - '33061:3306'
+        environment:
+            MYSQL_ROOT_PASSWORD: password
+            MYSQL_DATABASE: test
+        volumes:
+            - ./tests/temp:/app/temp
+
+    mariadb_test:
+        image: mariadb:lts
+        ports:
+            - '33062:3306'
+        environment:
+            MYSQL_ROOT_PASSWORD: password
+            MYSQL_DATABASE: test
+        volumes:
+            - ./tests/temp:/app/temp
+
+    pgsql_test:
+        image: postgres:15
+        ports:
+            - '33063:5432'
+        environment:
+            POSTGRES_PASSWORD: password
+            POSTGRES_DB: test
+            POSTGRES_USER: user
+        volumes:
+            - ./tests/temp:/app/temp
