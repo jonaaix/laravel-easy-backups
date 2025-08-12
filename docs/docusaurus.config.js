@@ -12,7 +12,7 @@ const isDeploy = process.env.NODE_ENV === 'production';
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
-   title: 'Laravel Eloquent Translatable',
+   title: 'Laravel Easy Backups',
    tagline: 'Fluent and flexible application backups for Laravel.',
    favicon: 'img/logo2.png',
 
