@@ -121,6 +121,7 @@ Backup::create()
     ->saveTo('s3')
     ->compress()
     ->notifyOnFailure('mail', 'monitoring@example.com') // The recipient's email address
+    ->notifyOnSuccess('mail', 'monitoring@example.com')
     ->run();
 ```
 
