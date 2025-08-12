@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Aaix\LaravelEasyBackups;
 
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+
 final class Restorer
 {
    private ?string $disk = null;

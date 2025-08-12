@@ -20,7 +20,7 @@ class EasyBackupsServiceProvider extends ServiceProvider
          $this->commands([
             \Aaix\LaravelEasyBackups\Commands\RunBackupCommand::class,
             \Aaix\LaravelEasyBackups\Commands\ListBackupsCommand::class,
-            \Aaix\LaravelEasyBackups\Commands\RestoreBackupCommand::class,
+            \Aaix\LaravelEasyBackups\Commands\RestoreDatabaseBackupCommand::class,
          ]);
       }
    }
