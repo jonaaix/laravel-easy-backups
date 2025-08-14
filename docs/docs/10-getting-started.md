@@ -21,7 +21,7 @@ Next, you should publish the configuration file. While the default settings work
 the config allows you to customize things later.
 
 ```bash
-php artisan vendor:publish --tag="config"
+php artisan vendor:publish --provider="Aaix\LaravelEasyBackups\EasyBackupsServiceProvider" --tag="config"
 ```
 
 This will create a `config/easy-backups.php` file in your project.
