@@ -2,9 +2,9 @@
 name: Run Tests
 
 on:
-    push: { }            # trigger on any push (branches & tags)
-    pull_request: { }    # trigger on any pull request
-    workflow_call: { }   # allow other workflows to call this one
+#    push: { }            # trigger on any push (branches & tags)
+#    pull_request: { }    # trigger on any pull request
+#    workflow_call: { }   # allow other workflows to call this one
 
 jobs:
     test:
