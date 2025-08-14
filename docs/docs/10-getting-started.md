@@ -38,6 +38,8 @@ This will create a new command in `app/Console/Commands/Backup/DatabaseBackupCom
 Next, we use the package to set up the backup configuration.
 
 ```php
+<?php
+
 namespace App\Console\Commands\Backup;
 
 use Illuminate\Console\Command;
@@ -45,24 +47,24 @@ use Aaix\LaravelEasyBackups\Facades\Backup;
 
 class DatabaseBackupCommand extends Command
 {
-    protected $signature = 'backup:db:create';
+   protected $signature = 'backup:db:create';
 
-    protected $description = 'Create a database backup';
-    
-    public function handle(): int
-    {
-        $this->info('Creating database backup...');
-    
-        Backup::create()
-            ->includeDatabases([config('database.default')])
-            ->saveTo('local')
-            ->compress()
-            ->run();
-            
-        $this->info('Database backup created successfully.');
-        
-        return self::SUCCESS;
-    }
+   protected $description = 'Create a database backup';
+
+   public function handle(): int
+   {
+      $this->info('Creating database backup...');
+
+      Backup::create()
+         ->includeDatabases([config('database.default')])
+         ->saveTo('local')
+         ->compress()
+         ->run();
+
+      $this->info('Database backup created successfully.');
+
+      return self::SUCCESS;
+   }
 }
 ```
 
