@@ -12,7 +12,6 @@ use Aaix\LaravelEasyBackups\Actions\VerifyBackupAction;
 use Aaix\LaravelEasyBackups\BackupJob;
 use Aaix\LaravelEasyBackups\DumperFactory;
 use Aaix\LaravelEasyBackups\Events\BackupInvalid;
-use Aaix\LaravelEasyBackups\Events\BackupSucceeded;
 use Exception;
 use Illuminate\Support\Facades\File;
 
@@ -30,49 +29,71 @@ class BackupProcessor
    public function execute(BackupJob $job): array
    {
       $config = $job->getConfig();
-      File::ensureDirectoryExists($job->getWorkingDirectory());
+      $workingDirectory = $job->getWorkingDirectory();
+      File::ensureDirectoryExists($workingDirectory);
 
-      $dumpPaths = $this->createDatabaseDumps($config['databasesToInclude'], $job->getWorkingDirectory());
+      $artifactsInTemp = [];
+      $finalLocalPaths = [];
 
-      if (! $config['shouldCompress']) {
-         return $dumpPaths;
+      // 1. Create database dumps with timestamps
+      $sqlDumpPaths = $this->createDatabaseDumps($config['databasesToInclude'], $workingDirectory);
+      $artifactsInTemp = array_merge($artifactsInTemp, $sqlDumpPaths);
+
+      // 2. Handle compression if requested
+      if ($config['shouldCompress']) {
+         $includedFiles = $this->findFiles($config['filesToInclude']);
+         $artifactsForArchive = array_merge($sqlDumpPaths, $includedFiles);
+
+         $tempArchiveName = 'backup-' . date('Y-m-d_H-i-s') . '.zip';
+         $tempArchivePath = $workingDirectory . DIRECTORY_SEPARATOR . $tempArchiveName;
+
+         $this->createArchiveAction->execute(
+            $tempArchivePath,
+            $artifactsForArchive,
+            $config['directoriesToInclude'],
+            $config['encryptionPassword']
+         );
+
+         $this->verifyBackup($tempArchivePath);
+
+         // The archive is now the only artifact we care about.
+         $artifactsInTemp = [$tempArchivePath];
       }
 
-      $artifacts = array_merge($dumpPaths, $this->findFiles($config['filesToInclude']));
+      // 3. Move all final artifacts to their definitive local storage path
+      File::ensureDirectoryExists($config['localStorageDir']);
+      foreach ($artifactsInTemp as $artifactPath) {
+         $finalPath = $config['localStorageDir'] . DIRECTORY_SEPARATOR . basename($artifactPath);
+         File::move($artifactPath, $finalPath);
+         $finalLocalPaths[] = $finalPath;
+      }
 
-      $tempArchiveName = 'backup-' . date('Y-m-d_H-i-s') . '.zip';
-      $tempArchivePath = $job->getWorkingDirectory() . DIRECTORY_SEPARATOR . $tempArchiveName;
-
-      $this->createArchiveAction->execute(
-         $tempArchivePath,
-         $artifacts,
-         $config['directoriesToInclude'],
-         $config['encryptionPassword']
-      );
-
-      $this->verifyBackup($tempArchivePath);
-
-      $finalBackupPath = $config['localStorageDir'] . DIRECTORY_SEPARATOR . $tempArchiveName;
-      File::ensureDirectoryExists(dirname($finalBackupPath));
-      File::move($tempArchivePath, $finalBackupPath);
-
+      // 4. Upload to remote storage if configured
       if ($config['saveTo']) {
-         $this->uploadBackupAction->execute($finalBackupPath, $config['saveTo'], $config['remoteStorageDir']);
-         $this->cleanupBackupsAction->execute($config['saveTo'], $config['remoteStorageDir'], $config['maxRemoteBackups']);
+         foreach ($finalLocalPaths as $localPath) {
+            $this->uploadBackupAction->execute($localPath, $config['saveTo'], $config['remoteStorageDir']);
+         }
       }
 
-      if (!$config['keepLocal'] && $config['saveTo']) {
-         File::delete($finalBackupPath);
-      } else {
+      // 5. Cleanup local and remote backups
+      if ($config['saveTo']) {
+         $this->cleanupBackupsAction->execute($config['saveTo'], $config['remoteStorageDir'], $config['maxRemoteBackups']);
+         if (!$config['keepLocal']) {
+            File::delete($finalLocalPaths);
+         }
+      }
+
+      if ($config['keepLocal'] || !$config['saveTo']) {
          $this->cleanupBackupsAction->execute('local', $config['localStorageDir'], $config['maxLocalBackups']);
       }
 
-      $sizeInBytes = File::exists($finalBackupPath) ? File::size($finalBackupPath) : 0;
+      // 6. Consolidate results for the job to handle
+      $totalSize = array_reduce($finalLocalPaths, fn($sum, $path) => $sum + (File::exists($path) ? File::size($path) : 0), 0);
 
       return [
-          'path' => $finalBackupPath,
-          'disk' => $config['saveTo'] ?? 'local',
-          'size' => $sizeInBytes,
+         'paths' => $finalLocalPaths,
+         'disk' => $config['saveTo'] ?? 'local',
+         'size' => $totalSize,
       ];
    }
 
@@ -81,7 +102,8 @@ class BackupProcessor
       $dumpPaths = [];
       foreach ($databases as $dbName) {
          $dumper = DumperFactory::create($dbName);
-         $dumpPath = $workingDirectory . DIRECTORY_SEPARATOR . "db-dump_{$dbName}.sql";
+         $timestamp = date('Y-m-d_H-i-s');
+         $dumpPath = $workingDirectory . DIRECTORY_SEPARATOR . "db-dump_{$dbName}_{$timestamp}.sql";
          $this->createDatabaseDumpAction->execute($dumper, $dumpPath);
          $dumpPaths[] = $dumpPath;
       }

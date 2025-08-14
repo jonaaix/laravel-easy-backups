@@ -13,28 +13,46 @@ class BackupSucceededNotification extends Notification
    use Queueable;
 
    public function __construct(
-      public readonly string $path,
-      public readonly string $disk,
-      public readonly int $sizeInBytes
+      private readonly array $paths,
+      private readonly string $disk,
+      private readonly int $sizeInBytes
    ) {
    }
 
-   public function via(mixed $notifiable): array
+   public function via(object $notifiable): array
    {
-      return array_keys($notifiable->routes);
+      return ['mail'];
    }
 
-   public function toMail(mixed $notifiable): MailMessage
+   public function toMail(object $notifiable): MailMessage
    {
-      $sizeInMB = number_format($this->sizeInBytes / 1024 / 1024, 2);
+      $fileCount = count($this->paths);
+      $formattedSize = $this->formatSize($this->sizeInBytes);
+      $appName = config('app.name');
+
+      $pathList = collect($this->paths)
+         ->map(fn(string $path) => '- `' . basename($path) . '`')
+         ->implode("\n");
 
       return (new MailMessage())
-         ->subject('✅ Backup was successful!')
-         ->greeting('Hello!')
-         ->line('A new backup has been created successfully.')
-         ->line('**Backup File:** ' . basename($this->path))
-         ->line('**Disk:** ' . $this->disk)
-         ->line('**Size:** ' . $sizeInMB . ' MB')
-         ->success();
+         ->success()
+         ->subject("{$appName}: Backup was successful")
+         ->greeting('Backup Succeeded!')
+         ->line("A new backup of your application has been successfully created on the disk '{$this->disk}'.")
+         ->line("**Total Size:** {$formattedSize}")
+         ->line("**Number of Files:** {$fileCount}")
+         ->line('**Created Artefacts:**')
+         ->line($pathList);
+   }
+
+   private function formatSize(int $bytes): string
+   {
+      if ($bytes === 0) {
+         return '0 B';
+      }
+
+      $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+      $i = (int)floor(log($bytes, 1024));
+      return round($bytes / (1024 ** $i), 2) . ' ' . $units[$i];
    }
 }

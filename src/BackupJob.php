@@ -50,7 +50,7 @@ class BackupJob implements ShouldQueue
          $this->isManagedTempDirectory = false;
       } else {
          $baseTempDir = storage_path('app/easy-backups-temp');
-         $this->workingDirectory = $baseTempDir . DIRECTORY_SEPARATOR . Str::random(16);
+         $this->workingDirectory = $baseTempDir . DIRECTORY_SEPARATOR . 'backup_' . date('Y-m-d_H-i-s');
          $this->isManagedTempDirectory = true;
       }
    }
@@ -72,9 +72,13 @@ class BackupJob implements ShouldQueue
             $this->sendSuccessNotification($result);
          }
 
-         event(new BackupSucceeded($result['path'], $result['disk'], $result['size']));
+         // The event receives the primary artifact path and the total size.
+         $primaryPath = $result['paths'][0] ?? null;
+         if ($primaryPath) {
+            event(new BackupSucceeded($primaryPath, $result['disk'], $result['size']));
+         }
 
-         return [$result['path']];
+         return $result['paths'];
       } catch (Throwable $e) {
          if (!empty($this->notifyOnFailure['channels'])) {
             $this->sendFailureNotification($e);
@@ -91,8 +95,8 @@ class BackupJob implements ShouldQueue
 
    private function sendSuccessNotification(array $result): void
    {
-       $notifiable = $this->createNotifiable($this->notifyOnSuccess);
-       Notification::send($notifiable, new BackupSucceededNotification($result['path'], $result['disk'], $result['size']));
+      $notifiable = $this->createNotifiable($this->notifyOnSuccess);
+      Notification::send($notifiable, new BackupSucceededNotification($result['paths'], $result['disk'], $result['size']));
    }
 
    private function sendFailureNotification(Throwable $exception): void
