@@ -82,10 +82,11 @@ final class Restorer
          useLatest: $this->useLatest,
       );
 
-      if (($this->connection ?? config('queue.default')) === 'sync') {
+      if (is_null($this->connection) && is_null($this->queue)) {
          return app()->call([$job, 'handle']);
       }
 
+      // onConnection(null) uses the default queue connection
       $dispatch = dispatch($job)->onConnection($this->connection);
       if ($this->queue) {
          $dispatch->onQueue($this->queue);
