@@ -2,7 +2,7 @@
 sidebar_position: 50
 ---
 
-# Artisan Commands Reference
+# Included Artisan Commands
 
 The package includes a set of basic quickstart Artisan commands.
 
