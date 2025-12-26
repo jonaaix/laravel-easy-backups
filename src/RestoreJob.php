@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Aaix\LaravelEasyBackups;
 
+use Aaix\LaravelEasyBackups\Contracts\ProcessExecutor;
 use Aaix\LaravelEasyBackups\Events\RestoreFailed;
 use Aaix\LaravelEasyBackups\Events\RestoreSucceeded;
 use Illuminate\Bus\Queueable;
@@ -15,7 +16,6 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Throwable;
-use ZipArchive;
 
 class RestoreJob implements ShouldQueue
 {
@@ -26,6 +26,7 @@ class RestoreJob implements ShouldQueue
    public function __construct(
       private readonly string $sourceDisk,
       private ?string $sourcePath,
+      private readonly string $sourceDirectory,
       private readonly string $databaseConnection,
       private readonly ?string $password,
       private readonly bool $shouldWipe = true,
@@ -42,39 +43,23 @@ class RestoreJob implements ShouldQueue
 
       try {
          File::ensureDirectoryExists($this->tempDirectory);
+         $localPath = $this->tempDirectory . DIRECTORY_SEPARATOR . basename($this->sourcePath);
 
-         // 1. Download backup
-         $localBackupPath = $this->tempDirectory . DIRECTORY_SEPARATOR . basename($this->sourcePath);
-         $backupContent = Storage::disk($this->sourceDisk)->get($this->sourcePath);
-         File::put($localBackupPath, $backupContent);
+         // Download
+         File::put($localPath, Storage::disk($this->sourceDisk)->get($this->sourcePath));
 
-         // 2. Extract archive
-         $zip = new ZipArchive();
-         if ($zip->open($localBackupPath) !== true) {
-            throw new \Exception('Failed to open backup archive.');
-         }
-         if ($this->password) {
-            $zip->setPassword($this->password);
-         }
-         $zip->extractTo($this->tempDirectory);
-         $zip->close();
+         $dumpPath = match(true) {
+            Str::endsWith($localPath, '.zip') => $this->extractZip($localPath),
+            Str::endsWith($localPath, ['.tar', '.gz', '.zst']) => $this->extractTar($localPath),
+            Str::endsWith($localPath, '.sql') => $localPath,
+            default => throw new \Exception('Unsupported backup format.'),
+         };
 
-         // 3. Find SQL dump
-         $sqlFiles = File::glob($this->tempDirectory . DIRECTORY_SEPARATOR . 'db-dump_*.sql');
-         if (empty($sqlFiles)) {
-            throw new \Exception('No SQL dump file found in the archive.');
-         }
-         $dumpPath = $sqlFiles[0];
-
-         // 4. Wipe the database (if enabled)
          if ($this->shouldWipe) {
-            $wiper = WiperFactory::create($this->databaseConnection);
-            $wiper->wipe();
+            WiperFactory::create($this->databaseConnection)->wipe();
          }
 
-         // 5. Import SQL dump
-         $importer = ImporterFactory::create($this->databaseConnection);
-         $importer->importFromFile($dumpPath);
+         ImporterFactory::create($this->databaseConnection)->importFromFile($dumpPath);
 
          event(new RestoreSucceeded($this->sourceDisk, $this->sourcePath, $this->databaseConnection));
 
@@ -91,21 +76,66 @@ class RestoreJob implements ShouldQueue
       }
    }
 
+   private function extractTar(string $path): string
+   {
+      $flags = '-xf';
+      if (Str::endsWith($path, '.gz')) $flags = '-zxf';
+      if (Str::endsWith($path, '.zst')) $flags = '--zstd -xf';
+
+      app(ProcessExecutor::class)->execute(
+         sprintf('tar %s %s -C %s', $flags, escapeshellarg($path), escapeshellarg($this->tempDirectory)),
+         $this->tempDirectory
+      );
+
+      return $this->validateAndFindSql();
+   }
+
+   private function extractZip(string $path): string
+   {
+      $zip = new \ZipArchive();
+      if ($zip->open($path) !== true) {
+         throw new \Exception('Failed to open zip archive.');
+      }
+      if ($this->password) {
+         $zip->setPassword($this->password);
+      }
+      $zip->extractTo($this->tempDirectory);
+      $zip->close();
+
+      return $this->validateAndFindSql();
+   }
+
+   private function validateAndFindSql(): string
+   {
+      // Search recursively
+      $files = File::allFiles($this->tempDirectory);
+      $sqlFiles = array_filter($files, fn($file) => $file->getExtension() === 'sql');
+
+      $count = count($sqlFiles);
+
+      if ($count === 0) {
+         throw new \Exception('No SQL file found in archive.');
+      }
+
+      if ($count > 1) {
+         throw new \Exception("Ambiguous backup: {$count} SQL files found. Automated restore requires exactly one.");
+      }
+
+      return reset($sqlFiles)->getRealPath();
+   }
+
    private function findLatestBackupPath(): string
    {
       $disk = Storage::disk($this->sourceDisk);
-      // TODO: If path is overridden, we should use that instead of the default one.
-      $path = config('easy-backups.defaults.database.remote_storage_path');
-
-      $latestFile = collect($disk->files($path))
-         ->filter(fn ($file) => str_starts_with(basename($file), 'backup-') && str_ends_with($file, '.zip'))
-         ->mapWithKeys(fn ($file) => [$file => $disk->lastModified($file)])
+      $latestFile = collect($disk->files($this->sourceDirectory))
+         ->filter(fn (string $file) => Str::endsWith($file, ['.zip', '.sql', '.tar', '.gz', '.zst']))
+         ->mapWithKeys(fn (string $file) => [$file => $disk->lastModified($file)])
          ->sortDesc()
          ->keys()
          ->first();
 
       if (!$latestFile) {
-         throw new \Exception("No backup found on disk '{$this->sourceDisk}' in path '{$path}'.");
+         throw new \Exception("No valid backup found in path '{$this->sourceDirectory}'.");
       }
 
       return $latestFile;

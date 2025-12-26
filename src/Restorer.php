@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Aaix\LaravelEasyBackups;
 
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -11,6 +12,7 @@ final class Restorer
 {
    private ?string $disk = null;
    private ?string $path = null;
+   private ?string $directory = null;
    private ?string $databaseConnection = null;
    private ?string $password = null;
    private ?string $queue = null;
@@ -26,6 +28,12 @@ final class Restorer
    public function fromDisk(string $disk): self
    {
       $this->disk = $disk;
+      return $this;
+   }
+
+   public function fromDir(string $directory): self
+   {
+      $this->directory = $directory;
       return $this;
    }
 
@@ -73,9 +81,14 @@ final class Restorer
 
    public function run(): mixed
    {
+      if (is_null($this->databaseConnection)) {
+         throw new \InvalidArgumentException('A target database connection must be explicitly defined.');
+      }
+
       $job = new RestoreJob(
          sourceDisk: $this->disk,
          sourcePath: $this->path,
+         sourceDirectory: $this->directory ?? config('easy-backups.defaults.database.remote_storage_path'),
          databaseConnection: $this->databaseConnection,
          password: $this->password,
          shouldWipe: $this->shouldWipe,
@@ -86,7 +99,6 @@ final class Restorer
          return app()->call([$job, 'handle']);
       }
 
-      // onConnection(null) uses the default queue connection
       $dispatch = dispatch($job)->onConnection($this->connection);
       if ($this->queue) {
          $dispatch->onQueue($this->queue);
@@ -95,20 +107,24 @@ final class Restorer
       return $dispatch;
    }
 
-   public static function getRecentBackups(string $disk, int $count = 30): \Illuminate\Support\Collection
+   public static function getRecentBackups(string $disk, ?string $directory = null, int $count = 30): Collection
    {
       $storageDisk = Storage::disk($disk);
-      $path = config('easy-backups.defaults.database.remote_storage_path');
+      $searchPath = $directory ?? config('easy-backups.defaults.database.remote_storage_path');
 
-      return collect($storageDisk->files($path))
-         ->filter(fn ($file) => Str::startsWith(basename($file), 'backup-') && Str::endsWith($file, '.zip'))
-         ->mapWithKeys(fn ($file) => [$file => $storageDisk->lastModified($file)])
+      return collect($storageDisk->files($searchPath))
+         // Support all our formats + raw sql
+         ->filter(fn (string $file) => Str::endsWith($file, ['.zip', '.sql', '.tar', '.gz', '.zst']))
+         ->mapWithKeys(fn (string $file) => [$file => $storageDisk->lastModified($file)])
          ->sortDesc()
          ->take($count)
-         ->map(function ($timestamp, $file) use ($storageDisk) {
+         ->map(function (int $timestamp, string $file) use ($storageDisk): array {
+            $extension = pathinfo($file, PATHINFO_EXTENSION);
             return [
                'path' => $file,
-               'label' => sprintf('%s (%s, %s)',
+               'label' => sprintf(
+                  '[%s] %s (%s, %s)',
+                  strtoupper($extension),
                   basename($file),
                   self::formatSize($storageDisk->size($file)),
                   now()->createFromTimestamp($timestamp)->diffForHumans()
@@ -121,10 +137,11 @@ final class Restorer
    {
       $units = ['B', 'KB', 'MB', 'GB', 'TB'];
       $i = 0;
-      while ($bytes >= 1024 && $i < 4) {
-         $bytes /= 1024;
+      $size = (float) $bytes;
+      while ($size >= 1024 && $i < 4) {
+         $size /= 1024;
          $i++;
       }
-      return round($bytes, 2) . ' ' . $units[$i];
+      return round($size, 2) . ' ' . $units[$i];
    }
 }

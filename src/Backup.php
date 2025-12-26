@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Aaix\LaravelEasyBackups;
 
+use Illuminate\Foundation\Bus\PendingDispatch;
+
 final class Backup
 {
    private array $databasesToInclude = [];
@@ -24,33 +26,61 @@ final class Backup
    private ?string $afterHook = null;
    private ?string $tempDirectory = null;
    private bool $shouldCompress = false;
+   private string $namePrefix = 'backup';
 
-   public static function create(): self
+   /**
+    * Start a database-specific backup.
+    */
+   public static function database(string $connection): self
    {
-      return new self();
+      $instance = new self();
+      $instance->databasesToInclude = [$connection];
+      $instance->namePrefix = "db-{$connection}";
+      return $instance;
    }
 
-   public function setTempDirectory(string $path): self
+   /**
+    * Start a custom file backup.
+    */
+   public static function files(): self
    {
-      $this->tempDirectory = $path;
-      return $this;
+      $instance = new self();
+      $instance->namePrefix = 'files';
+      $instance->shouldCompress = true;
+      return $instance;
    }
 
-   public function includeDatabases(array $databases): self
+   /**
+    * Shortcut to backup the storage folder.
+    */
+   public static function storage(?string $path = null): self
    {
-      $this->databasesToInclude = $databases;
-      return $this;
+      $instance = self::files();
+      $instance->directoriesToInclude = [$path ?? storage_path('app')];
+      $instance->namePrefix = 'storage';
+      return $instance;
+   }
+
+   /**
+    * Shortcut to backup the .env file.
+    */
+   public static function env(): self
+   {
+      $instance = self::files();
+      $instance->filesToInclude = [base_path('.env')];
+      $instance->namePrefix = 'env';
+      return $instance;
    }
 
    public function includeFiles(array $files): self
    {
-      $this->filesToInclude = $files;
+      $this->filesToInclude = array_merge($this->filesToInclude, $files);
       return $this;
    }
 
    public function includeDirectories(array $directories): self
    {
-      $this->directoriesToInclude = $directories;
+      $this->directoriesToInclude = array_merge($this->directoriesToInclude, $directories);
       return $this;
    }
 
@@ -60,15 +90,21 @@ final class Backup
       return $this;
    }
 
-   public function setLocalStorageDir(string $path): self
-   {
-      $this->localStorageDir = $path;
-      return $this;
-   }
-
+   /**
+    * Set a custom directory path for the remote storage.
+    */
    public function setRemoteStorageDir(string $path): self
    {
       $this->remoteStorageDir = $path;
+      return $this;
+   }
+
+   /**
+    * Set a custom directory path for local storage before upload.
+    */
+   public function setLocalStorageDir(string $path): self
+   {
+      $this->localStorageDir = $path;
       return $this;
    }
 
@@ -99,7 +135,7 @@ final class Backup
    public function encryptWithPassword(string $password): self
    {
       $this->encryptionPassword = $password;
-      $this->shouldCompress = true; // Encryption implies compression
+      $this->shouldCompress = true;
       return $this;
    }
 
@@ -139,6 +175,12 @@ final class Backup
       return $this;
    }
 
+   public function setTempDirectory(string $path): self
+   {
+      $this->tempDirectory = $path;
+      return $this;
+   }
+
    public function run(): mixed
    {
       $job = new BackupJob(
@@ -157,15 +199,17 @@ final class Backup
          beforeHook: $this->beforeHook,
          afterHook: $this->afterHook,
          tempDirectory: $this->tempDirectory,
-         shouldCompress: $this->shouldCompress
+         shouldCompress: $this->shouldCompress,
+         namePrefix: $this->namePrefix
       );
 
       if (is_null($this->connection) && is_null($this->queue)) {
          return app()->call([$job, 'handle']);
       }
 
-      // onConnection(null) uses the default queue connection
+      /** @var PendingDispatch $dispatch */
       $dispatch = dispatch($job)->onConnection($this->connection);
+
       if ($this->queue) {
          $dispatch->onQueue($this->queue);
       }

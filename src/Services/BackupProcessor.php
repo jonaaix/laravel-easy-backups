@@ -11,6 +11,7 @@ use Aaix\LaravelEasyBackups\Actions\UploadBackupAction;
 use Aaix\LaravelEasyBackups\Actions\VerifyBackupAction;
 use Aaix\LaravelEasyBackups\BackupJob;
 use Aaix\LaravelEasyBackups\DumperFactory;
+use Aaix\LaravelEasyBackups\Enums\CompressionFormatEnum;
 use Aaix\LaravelEasyBackups\Events\BackupInvalid;
 use Exception;
 use Illuminate\Support\Facades\File;
@@ -35,47 +36,87 @@ class BackupProcessor
       $artifactsInTemp = [];
       $finalLocalPaths = [];
 
-      // 1. Create database dumps with timestamps
-      $sqlDumpPaths = $this->createDatabaseDumps($config['databasesToInclude'], $workingDirectory);
-      $artifactsInTemp = array_merge($artifactsInTemp, $sqlDumpPaths);
+      // 1. Generate Source Artifacts
+      if (!empty($config['databasesToInclude'])) {
+         $artifactsInTemp = $this->createDatabaseDumps($config['databasesToInclude'], $workingDirectory);
+      } else {
+         $artifactsInTemp = $this->findFiles($config['filesToInclude']);
+      }
 
-      // 2. Handle compression if requested
+      // 2. Handle Compression (Optional / Smart)
       if ($config['shouldCompress']) {
-         $includedFiles = $this->findFiles($config['filesToInclude']);
-         $artifactsForArchive = array_merge($sqlDumpPaths, $includedFiles);
+         $timestamp = date('Y-m-d_H-i-s');
+         $namePrefix = $job->getNamePrefix();
 
-         $tempArchiveName = 'backup-' . date('Y-m-d_H-i-s') . '.zip';
-         $tempArchivePath = $workingDirectory . DIRECTORY_SEPARATOR . $tempArchiveName;
+         // Temporary base path without extension
+         $tempBasePath = $workingDirectory . DIRECTORY_SEPARATOR . "{$namePrefix}_{$timestamp}";
 
-         $this->createArchiveAction->execute(
+         // Default extension to use for the call (CreateArchive enforces logic internally but needs a target path)
+         $initialExtension = $config['encryptionPassword'] ? 'zip' : 'tar';
+         $tempArchivePath = "{$tempBasePath}.{$initialExtension}";
+
+         $format = $this->createArchiveAction->execute(
             $tempArchivePath,
-            $artifactsForArchive,
+            $artifactsInTemp,
             $config['directoriesToInclude'],
             $config['encryptionPassword']
          );
 
-         $this->verifyBackup($tempArchivePath);
+         // Rename if the resulting format differs from our initial guess
+         $correctPath = "{$tempBasePath}." . $format->getExtension();
+         if ($tempArchivePath !== $correctPath) {
+            File::move($tempArchivePath, $correctPath);
+         }
 
-         // The archive is now the only artifact we care about.
-         $artifactsInTemp = [$tempArchivePath];
+         // Strict verification only for ZIPs
+         if ($format === CompressionFormatEnum::ZIP) {
+            $this->verifyBackup($correctPath);
+         }
+
+         $artifactsInTemp = [$correctPath];
       }
 
-      // 3. Move all final artifacts to their definitive local storage path
-      File::ensureDirectoryExists($config['localStorageDir']);
-      foreach ($artifactsInTemp as $artifactPath) {
-         $finalPath = $config['localStorageDir'] . DIRECTORY_SEPARATOR . basename($artifactPath);
-         File::move($artifactPath, $finalPath);
+      // 3. Move to Local Storage (Robust Implementation)
+      $targetDir = $config['localStorageDir'];
+      File::ensureDirectoryExists($targetDir);
+
+      foreach ($artifactsInTemp as $sourcePath) {
+         $filename = basename($sourcePath);
+         $finalPath = $targetDir . DIRECTORY_SEPARATOR . $filename;
+
+         // Only move if source and destination are different paths
+         if ($sourcePath !== $finalPath) {
+            if (File::exists($finalPath)) {
+               File::delete($finalPath); // Overwrite protection
+            }
+            File::move($sourcePath, $finalPath);
+         }
          $finalLocalPaths[] = $finalPath;
       }
 
-      // 4. Upload to remote storage if configured
+      // 4. Remote Upload
       if ($config['saveTo']) {
          foreach ($finalLocalPaths as $localPath) {
             $this->uploadBackupAction->execute($localPath, $config['saveTo'], $config['remoteStorageDir']);
          }
       }
 
-      // 5. Cleanup local and remote backups
+      // 5. Cleanup
+      $this->performCleanup($job, $finalLocalPaths);
+
+      $totalSize = array_reduce($finalLocalPaths, fn($sum, $path) => $sum + (File::exists($path) ? File::size($path) : 0), 0);
+
+      return [
+         'paths' => $finalLocalPaths,
+         'disk' => $config['saveTo'] ?? 'local',
+         'size' => $totalSize,
+      ];
+   }
+
+   private function performCleanup(BackupJob $job, array $finalLocalPaths): void
+   {
+      $config = $job->getConfig();
+
       if ($config['saveTo']) {
          $this->cleanupBackupsAction->execute($config['saveTo'], $config['remoteStorageDir'], $config['maxRemoteBackups']);
          if (!$config['keepLocal']) {
@@ -86,15 +127,6 @@ class BackupProcessor
       if ($config['keepLocal'] || !$config['saveTo']) {
          $this->cleanupBackupsAction->execute('local', $config['localStorageDir'], $config['maxLocalBackups']);
       }
-
-      // 6. Consolidate results for the job to handle
-      $totalSize = array_reduce($finalLocalPaths, fn($sum, $path) => $sum + (File::exists($path) ? File::size($path) : 0), 0);
-
-      return [
-         'paths' => $finalLocalPaths,
-         'disk' => $config['saveTo'] ?? 'local',
-         'size' => $totalSize,
-      ];
    }
 
    private function createDatabaseDumps(array $databases, string $workingDirectory): array
@@ -124,7 +156,7 @@ class BackupProcessor
       $verificationResult = $this->verifyBackupAction->execute($archivePath);
       if ($verificationResult !== 'ok') {
          event(new BackupInvalid($archivePath, 'local', $verificationResult));
-         throw new Exception('Backup verification failed: ' . $verificationResult . ', Path: ' . $archivePath);
+         throw new Exception("Backup verification failed: {$verificationResult}");
       }
    }
 }

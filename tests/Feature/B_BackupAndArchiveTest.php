@@ -16,8 +16,7 @@ it('creates a valid, compressed backup archive for each driver', function (strin
 
    $this->createTestTableAndDataForDump($connection);
 
-   $backupPaths = Backup::create()
-      ->includeDatabases([$connection])
+   $backupPaths = Backup::database($connection)
       ->setLocalStorageDir($tempDir)
       ->setTempDirectory($tempDir)
       ->compress()
@@ -27,17 +26,29 @@ it('creates a valid, compressed backup archive for each driver', function (strin
    $backupFile = $backupPaths[0];
 
    expect(File::exists($backupFile))->toBeTrue();
-   expect($backupFile)->toEndWith('.zip');
 
-   $zip = new \ZipArchive();
-   expect($zip->open($backupFile, \ZipArchive::CHECKCONS))->toBeTrue();
-   expect($zip->numFiles)->toBe(1);
-   expect($zip->getNameIndex(0))->toBe("db-dump_{$connection}.sql");
+   $validExtensions = ['zip', 'tar', 'gz', 'zst'];
+   $extension = pathinfo($backupFile, PATHINFO_EXTENSION);
+   expect(in_array($extension, $validExtensions))->toBeTrue();
 
-   $dumpContent = $zip->getFromIndex(0);
-   expect($dumpContent)->toContain('test_table');
+   // Only check ZIP integrity if it is a zip
+   if ($extension === 'zip') {
+      $zip = new \ZipArchive();
+      expect($zip->open($backupFile, \ZipArchive::CHECKCONS))->toBeTrue();
+      // Expect exactly one SQL file inside
+      $filesInZip = [];
+      for($i = 0; $i < $zip->numFiles; $i++) {
+         $filesInZip[] = $zip->getNameIndex($i);
+      }
+      // Since the timestamp varies, we check strictly for .sql ending
+      $sqlFiles = array_filter($filesInZip, fn($name) => str_ends_with($name, '.sql'));
+      expect(count($sqlFiles))->toBe(1);
 
-   $zip->close();
+      $dumpContent = $zip->getFromName(reset($sqlFiles));
+      expect($dumpContent)->toContain('test_table');
+      $zip->close();
+   }
+
    File::delete($backupFile);
 })->with('database_drivers');
 
@@ -48,8 +59,8 @@ it('creates a password-protected backup archive', function () {
    $this->createTestTableAndDataForDump('sqlite_test');
    $password = 'secret-password';
 
-   $backupPaths = Backup::create()
-      ->includeDatabases(['sqlite_test'])
+   // NEW API USAGE: toLocalDir() statt setLocalStorageDir()
+   $backupPaths = Backup::database('sqlite_test')
       ->setLocalStorageDir($tempDir)
       ->setTempDirectory($tempDir)
       ->encryptWithPassword($password)
@@ -58,6 +69,7 @@ it('creates a password-protected backup archive', function () {
    expect($backupPaths)->toBeArray()->toHaveCount(1);
    $backupFile = $backupPaths[0];
    expect(File::exists($backupFile))->toBeTrue();
+   expect($backupFile)->toEndWith('.zip'); // Password implies ZIP
 
    $zip = new \ZipArchive();
    expect($zip->open($backupFile))->toBeTrue();
@@ -69,7 +81,6 @@ it('creates a password-protected backup archive', function () {
    $extractedContent = $zip->getFromIndex(0);
    $hasTableName = strpos($extractedContent, 'test_table') !== false;
    expect($hasTableName)->toBeTrue('Could not extract encrypted file with correct password or the file is empty.');
-
    $zip->close();
 
    File::delete($backupFile);

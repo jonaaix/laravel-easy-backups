@@ -43,7 +43,8 @@ class BackupJob implements ShouldQueue
       private readonly ?string $beforeHook,
       private readonly ?string $afterHook,
       ?string $tempDirectory = null,
-      private readonly bool $shouldCompress = false
+      private readonly bool $shouldCompress = false,
+      private readonly string $namePrefix = 'backup',
    ) {
       if ($tempDirectory) {
          $this->workingDirectory = $tempDirectory;
@@ -53,6 +54,11 @@ class BackupJob implements ShouldQueue
          $this->workingDirectory = $baseTempDir . DIRECTORY_SEPARATOR . 'backup_' . date('Y-m-d_H-i-s');
          $this->isManagedTempDirectory = true;
       }
+   }
+
+   public function getNamePrefix(): string
+   {
+      return $this->namePrefix;
    }
 
    public function handle(BackupProcessor $processor): array
