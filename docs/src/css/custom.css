@@ -73,6 +73,7 @@
       .table-of-contents__link--active,
       .navbar__link--active {
          color: var(--ifm-link-color);
+         transition: none;
       }
    }
 }
