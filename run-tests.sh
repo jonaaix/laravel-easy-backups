@@ -17,6 +17,10 @@ echo "Cleaning up previous test runs..."
 rm -rf .phpunit.cache # <-- DIESE ZEILE HINZUFÜGEN
 docker compose -f compose.testing.yml down --volumes --remove-orphans
 
+echo "Setting up temporary directory permissions..."
+mkdir -p tests/temp
+chmod 777 tests/temp
+
 # Start Docker containers
 echo "Starting Docker containers for testing..."
 docker compose -f compose.testing.yml up -d --wait
