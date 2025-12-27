@@ -33,7 +33,7 @@ abstract class TestCase extends OrchestraTestCase
 
       // MariaDB Test Connection
       $app['config']->set('database.connections.mariadb_test', [
-         'driver' => 'mysql',
+         'driver' => 'mariadb', // Changed from 'mysql' to 'mariadb' to trigger correct Dumper
          'host' => env('DB_HOST_MARIADB', '127.0.0.1'),
          'port' => env('DB_PORT_MARIADB', '33062'),
          'database' => env('DB_DATABASE_MARIADB', 'test'),

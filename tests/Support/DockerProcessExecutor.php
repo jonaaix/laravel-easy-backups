@@ -21,33 +21,58 @@ class DockerProcessExecutor implements ProcessExecutor
    {
       $composePath = $this->projectRoot . '/compose.testing.yml';
 
-      // Translate the host path inside the command to the container path.
+      // 1. Path Translation: Host path -> Container path
+      // We explicitly map the volume defined in compose.testing.yml.
+      // We do NOT use $cwd here because generic replacements (like replacing '/') are dangerous.
+      $hostTempDir = $this->projectRoot . '/tests/temp';
+      $containerTempDir = '/app/temp';
+
+      // Replace the absolute host path with the absolute container path in the command string.
       $containerCommand = str_replace(
-         $cwd,
-         '/app/temp',
+         $hostTempDir,
+         $containerTempDir,
          $command
       );
 
-      // Replace external host/port with internal Docker networking details
+      // 2. Network Translation: External Host/Port -> Internal Container Host/Port
       $config = config("database.connections.{$this->serviceName}");
+
       $externalHost = $config['host'];
       $externalPort = $config['port'];
 
-      $internalHost = 'localhost'; // Inside the service container, the DB is on localhost
+      // Inside the service container, the DB is strictly on localhost
+      $internalHost = 'localhost';
       $internalPort = match ($config['driver']) {
          'pgsql' => 5432,
          default => 3306,
       };
 
-      // Replace host and port in the command string for all drivers
-      $containerCommand = str_replace("-h{$externalHost}", "-h{$internalHost}", $containerCommand);
-      $containerCommand = str_replace("-P{$externalPort}", "-P{$internalPort}", $containerCommand); // For MySQL/MariaDB
-      $containerCommand = str_replace("-p {$externalPort}", "-p {$internalPort}", $containerCommand); // For PostgreSQL with space
+      // Precision Replacement for Dumpers (escapeshellarg handling):
+      // e.g. --host='127.0.0.1' -> --host='localhost'
+      $escapedExtHost = escapeshellarg($externalHost);
+      $escapedIntHost = escapeshellarg($internalHost);
 
+      $escapedExtPort = escapeshellarg((string) $externalPort);
+      $escapedIntPort = escapeshellarg((string) $internalPort);
+
+      $containerCommand = str_replace(
+         "--host={$escapedExtHost}",
+         "--host={$escapedIntHost}",
+         $containerCommand
+      );
+
+      $containerCommand = str_replace(
+         "--port={$escapedExtPort}",
+         "--port={$escapedIntPort}",
+         $containerCommand
+      );
+
+      // 3. Environment Variables
       $envString = collect($env)
          ->map(fn($value, $key) => '-e ' . escapeshellarg("{$key}={$value}"))
          ->implode(' ');
 
+      // 4. Execute via Docker Compose
       $dockerCommand = sprintf(
          'docker compose -f %s exec -T %s %s sh -c %s',
          escapeshellarg($composePath),
@@ -61,7 +86,7 @@ class DockerProcessExecutor implements ProcessExecutor
 
       if (!$process->isSuccessful()) {
          throw new DumpFailedException(
-            "Docker command execution failed. Error: {$process->getErrorOutput()}" . " Full command: " . $dockerCommand
+            "Docker command execution failed.\nError: {$process->getErrorOutput()}\nFull command: {$dockerCommand}"
          );
       }
    }
