@@ -43,8 +43,7 @@ kept.
 ```php
 use Aaix\LaravelEasyBackups\Facades\Backup;
 
-Backup::create()
-    ->includeDatabases([config('database.default')])
+Backup::database(config('database.default'))
     ->saveTo('s3')
     ->compress()
     ->maxRemoteBackups(10)
