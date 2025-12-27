@@ -50,26 +50,16 @@ final class Backup
       return $instance;
    }
 
-   /**
-    * Shortcut to backup the storage folder.
-    */
-   public static function storage(?string $path = null): self
+   public function includeStorage(?string $path = null): self
    {
-      $instance = self::files();
-      $instance->directoriesToInclude = [$path ?? storage_path('app')];
-      $instance->namePrefix = 'storage';
-      return $instance;
+      $this->directoriesToInclude[] = $path ?? storage_path('app');
+      return $this;
    }
 
-   /**
-    * Shortcut to backup the .env file.
-    */
-   public static function env(): self
+   public function includeEnv(): self
    {
-      $instance = self::files();
-      $instance->filesToInclude = [base_path('.env')];
-      $instance->namePrefix = 'env';
-      return $instance;
+      $this->filesToInclude[] = base_path('.env');
+      return $this;
    }
 
    public function includeFiles(array $files): self

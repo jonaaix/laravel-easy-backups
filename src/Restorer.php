@@ -20,9 +20,23 @@ final class Restorer
    private bool $shouldWipe = true;
    private bool $useLatest = false;
 
-   public static function create(): self
+   // Private constructor to enforce static entry points
+   private function __construct() {}
+
+   /**
+    * Start a restore process for a database.
+    */
+   public static function database(): self
    {
       return new self();
+   }
+
+   // TODO: Other restore types
+
+   public function toDatabase(string $connection): self
+   {
+      $this->databaseConnection = $connection;
+      return $this;
    }
 
    public function fromDisk(string $disk): self
@@ -40,12 +54,6 @@ final class Restorer
    public function fromPath(string $path): self
    {
       $this->path = $path;
-      return $this;
-   }
-
-   public function toDatabase(string $connection): self
-   {
-      $this->databaseConnection = $connection;
       return $this;
    }
 
@@ -82,7 +90,7 @@ final class Restorer
    public function run(): mixed
    {
       if (is_null($this->databaseConnection)) {
-         throw new \InvalidArgumentException('A target database connection must be explicitly defined.');
+         throw new \InvalidArgumentException('A target database connection must be defined using toDatabase().');
       }
 
       $job = new RestoreJob(
@@ -113,7 +121,6 @@ final class Restorer
       $searchPath = $directory ?? config('easy-backups.defaults.database.remote_storage_path');
 
       return collect($storageDisk->files($searchPath))
-         // Support all our formats + raw sql
          ->filter(fn (string $file) => Str::endsWith($file, ['.zip', '.sql', '.tar', '.gz', '.zst']))
          ->mapWithKeys(fn (string $file) => [$file => $storageDisk->lastModified($file)])
          ->sortDesc()

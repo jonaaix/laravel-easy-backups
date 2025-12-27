@@ -5,10 +5,12 @@ namespace Aaix\LaravelEasyBackups\Facades;
 use Illuminate\Support\Facades\Facade;
 
 /**
- * @method static \Aaix\LaravelEasyBackups\Backup create()
- * @method static \Aaix\LaravelEasyBackups\Backup includeDatabases(array $databases)
+ * @method static \Aaix\LaravelEasyBackups\Backup database(string $connection)
+ * @method static \Aaix\LaravelEasyBackups\Backup files()
  * @method static \Aaix\LaravelEasyBackups\Backup includeFiles(array $files)
  * @method static \Aaix\LaravelEasyBackups\Backup includeDirectories(array $directories)
+ * @method static \Aaix\LaravelEasyBackups\Backup includeStorage(?string $path = null)
+ * @method static \Aaix\LaravelEasyBackups\Backup includeEnv()
  * @method static \Aaix\LaravelEasyBackups\Backup saveTo(string $disk)
  * @method static \Aaix\LaravelEasyBackups\Backup keepLocal()
  * @method static \Aaix\LaravelEasyBackups\Backup maxRemoteBackups(int $count)

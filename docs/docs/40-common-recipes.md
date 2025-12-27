@@ -4,13 +4,11 @@ sidebar_position: 40
 
 # Common Recipes
 
-This page provides ready-to-use solutions for common backup scenarios. You can adapt these "recipes" for your own needs, for
-example, in a custom Artisan command or a scheduled task.
+This page provides ready-to-use solutions for common backup scenarios. You can adapt these "recipes" for your own needs, for example, in a custom Artisan command or a scheduled task.
 
 ## Daily Backup to S3 with Cleanup
 
-This is a very common requirement: a daily, automated backup of your main database to a remote location like Amazon S3, ensuring
-you only keep a limited number of recent backups.
+This is a very common requirement: a daily, automated backup of your main database to a remote location like Amazon S3, ensuring you only keep a limited number of recent backups.
 
 **The Goal:** Create a daily backup of the `mysql` database, store it on S3, and keep only the 7 most recent backups.
 
@@ -23,14 +21,14 @@ use Illuminate\Console\Command;
 class CreateDailyBackup extends Command
 {
     protected $signature = 'app:create-daily-backup';
+
     protected $description = 'Create a daily backup of the database and upload to S3.';
 
     public function handle(): int
     {
         $this->info('Starting daily backup...');
 
-        Backup::create()
-            ->includeDatabases(['mysql'])
+        Backup::database('mysql')
             ->saveTo('s3')
             ->compress()
             ->maxRemoteBackups(7) // Keep the last 7 backups
@@ -43,14 +41,13 @@ class CreateDailyBackup extends Command
 }
 ```
 
-**To make this run daily, register the command in your `app/Console/Kernel.php`:**
+**To make this run daily, register the command in your `routes/console.php` (Laravel 11+):**
 
 ```php
-// app/Console/Kernel.php
-protected function schedule(Schedule $schedule): void
-{
-    $schedule->command('app:create-daily-backup')->daily()->at('02:00');
-}
+// routes/console.php
+use Illuminate\Support\Facades\Schedule;
+
+Schedule::command('app:create-daily-backup')->daily()->at('02:00');
 ```
 
 ## Backup User Uploads with the Database
@@ -59,17 +56,26 @@ If your users upload files (like avatars or documents), you need to back up thos
 
 **The Goal:** Back up the default database and the entire `storage/app/public` directory.
 
+:::info Single Responsibility
+Since a backup job handles **either** a database **or** files, we dispatch two separate jobs here.
+:::
+
 ```php
 use Aaix\LaravelEasyBackups\Facades\Backup;
 
-Backup::create()
-    ->includeDatabases([
-        config('database.default')
-    ])
+// 1. Backup the Database
+Backup::database(config('database.default'))
+    ->saveTo('s3')
+    ->setRemoteStorageDir('database-backups')
+    ->compress()
+    ->run();
+
+// 2. Backup the Files
+Backup::files()
     ->includeDirectories([
         storage_path('app/public')
     ])
-    ->compress()
+    ->setRemoteStorageDir('file-backups')
     ->saveTo('s3')
     ->run();
 ```
@@ -83,11 +89,11 @@ If your backup contains sensitive data, you should always encrypt it.
 ```php
 use Aaix\LaravelEasyBackups\Facades\Backup;
 
-Backup::create()
-    ->includeDatabases(['mysql'])
+Backup::database('mysql')
     ->encryptWithPassword(config('app.backup_password')) // Store password securely!
     ->compress()
     ->saveTo('s3')
+    ->setRemoteStorageDir('mysql-backups')
     ->run();
 ```
 
@@ -98,9 +104,10 @@ To restore it, you must provide the same password:
 ```php
 use Aaix\LaravelEasyBackups\Facades\Restorer;
 
-Restorer::create()
+Restorer::database()
     ->fromDisk('s3')
-    ->fromPath('path/to/encrypted-backup.zip')
+    ->fromDir('mysql-backups')
+    ->toDatabase('mysql')
     ->withPassword(config('app.backup_password'))
     ->run();
 ```
@@ -116,8 +123,7 @@ use Aaix\LaravelEasyBackups\Facades\Backup;
 
 // Assumes your application's mail driver is configured
 
-Backup::create()
-    ->includeDatabases(['mysql'])
+Backup::database('mysql')
     ->saveTo('s3')
     ->compress()
     ->notifyOnFailure('mail', 'monitoring@example.com') // The recipient's email address
@@ -125,5 +131,4 @@ Backup::create()
     ->run();
 ```
 
-This uses Laravel's built-in notification system. As long as your application's mail driver is correctly configured (e.g., in your
-`.env` file and `config/mail.php`), it will work out-of-the-box.
+This uses Laravel's built-in notification system. As long as your application's mail driver is correctly configured (e.g., in your `.env` file and `config/mail.php`), it will work out-of-the-box.

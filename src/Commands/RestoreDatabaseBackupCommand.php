@@ -41,7 +41,7 @@ class RestoreDatabaseBackupCommand extends Command
 
       $this->info("Starting restore of the LATEST backup...");
 
-      $restorer = Restorer::create()
+      $restorer = Restorer::database()
          ->fromDisk($disk)
          ->toDatabase($database)
          ->latest();
@@ -62,7 +62,6 @@ class RestoreDatabaseBackupCommand extends Command
    private function restoreFromSelection(string $disk, string $database, ?string $dir, ?string $password): int
    {
       $this->info("Fetching recent backups from disk '{$disk}'...");
-
       $backups = Restorer::getRecentBackups($disk, $dir);
 
       if ($backups->isEmpty()) {
@@ -79,7 +78,7 @@ class RestoreDatabaseBackupCommand extends Command
 
       if ($this->confirm("Are you sure you want to restore '" . basename($selectedPath) . "' to database '{$database}'? This will wipe the database.")) {
 
-         $restorer = Restorer::create()
+         $restorer = Restorer::database()
             ->fromDisk($disk)
             ->fromPath($selectedPath)
             ->toDatabase($database);
