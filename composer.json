@@ -1,5 +1,5 @@
 {
-   "version": "1.0.0",
+   "version": "1.0.1",
    "name": "aaix/laravel-easy-backups",
    "description": "A developer-first, fluent and flexible package for creating database backups in Laravel.",
    "type": "laravel-package",
