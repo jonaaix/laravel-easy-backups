@@ -2,9 +2,9 @@
 name: Run Tests
 
 on:
-#    push: { }            # trigger on any push (branches & tags)
-#    pull_request: { }    # trigger on any pull request
-#    workflow_call: { }   # allow other workflows to call this one
+    push: { }            # trigger on any push (branches & tags)
+    pull_request: { }    # trigger on any pull request
+    workflow_call: { }   # allow other workflows to call this one
 
 jobs:
     test:
@@ -15,12 +15,6 @@ jobs:
                 # We explicitly define the test combinations.
                 # Each combination has a compatible set of Laravel, Testbench, and PHPUnit versions.
                 include:
-                    # Test Laravel 10
-                    -   laravel: 10.*
-                        php: 8.2
-                        testbench: 8.*
-                        phpunit: 10.*
-
                     # Test Laravel 11
                     -   laravel: 11.*
                         php: 8.2
@@ -30,6 +24,12 @@ jobs:
                     # Test Laravel 12
                     -   laravel: 12.*
                         php: 8.3
+                        testbench: 10.*
+                        phpunit: 12.*
+
+                    # Test Laravel 12
+                    -   laravel: 12.*
+                        php: 8.4
                         testbench: 10.*
                         phpunit: 12.*
 
