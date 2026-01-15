@@ -22,7 +22,7 @@ final class Restorer
    private ?string $saveCopyDisk = null;
 
    // Private constructor to enforce static entry points
-   private function __construct() {}
+   public function __construct() {}
 
    /**
     * Start a restore process for a database.
