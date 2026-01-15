@@ -37,6 +37,13 @@ Backup::database('app_data')
     ->maxRemoteBackups(7) // Keep the last 7 backups on S3
     ->maxLocalBackups(3)  // Keep the last 3 backups locally
     ->run();
+
+// Or:
+
+Backup::database('app_data')
+    ->saveTo('s3')
+    ->maxRemoteDays(40)
+    ->run();
 ```
 
 * `->saveTo('s3')`: This method instructs the package to store the backup on the `s3` disk. Make sure your `s3` disk is correctly configured in `config/filesystems.php`.
@@ -44,6 +51,7 @@ Backup::database('app_data')
 * `->encryptWithPassword('secret')`: This method instructs the package to encrypt the backup archive with the specified password.
 * `->maxRemoteBackups(7)`: After a successful backup to a remote disk (like `s3`), this will delete the oldest backups, ensuring only the 7 most recent ones are kept.
 * `->maxLocalBackups(3)`: Similarly, this manages the number of backups on your local filesystem.
+* `->maxRemoteDays(40)`: This method instructs the package to delete backups older than 40 days from the remote disk (like `s3`).
 
 ## Backing up Files and Directories
 
