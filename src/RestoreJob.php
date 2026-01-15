@@ -31,6 +31,7 @@ class RestoreJob implements ShouldQueue
       private readonly ?string $password,
       private readonly bool $shouldWipe = true,
       private readonly bool $useLatest = false,
+      private readonly ?string $saveCopyDisk = null,
    ) {
       $this->tempDirectory = storage_path('app/easy-backups-temp/' . Str::random(16));
    }
@@ -48,7 +49,11 @@ class RestoreJob implements ShouldQueue
          // Download
          File::put($localPath, Storage::disk($this->sourceDisk)->get($this->sourcePath));
 
-         $dumpPath = match(true) {
+         if ($this->saveCopyDisk) {
+            Storage::disk($this->saveCopyDisk)->put(basename($this->sourcePath), File::get($localPath));
+         }
+
+         $dumpPath = match (true) {
             Str::endsWith($localPath, '.zip') => $this->extractZip($localPath),
             Str::endsWith($localPath, ['.tar', '.gz', '.zst']) => $this->extractTar($localPath),
             Str::endsWith($localPath, '.sql') => $localPath,
@@ -62,7 +67,6 @@ class RestoreJob implements ShouldQueue
          ImporterFactory::create($this->databaseConnection)->importFromFile($dumpPath);
 
          event(new RestoreSucceeded($this->sourceDisk, $this->sourcePath, $this->databaseConnection));
-
       } catch (Throwable $e) {
          event(new RestoreFailed(
             ['sourceDisk' => $this->sourceDisk, 'sourcePath' => $this->sourcePath, 'database' => $this->databaseConnection],
@@ -96,9 +100,11 @@ class RestoreJob implements ShouldQueue
       if ($zip->open($path) !== true) {
          throw new \Exception('Failed to open zip archive.');
       }
+
       if ($this->password) {
          $zip->setPassword($this->password);
       }
+
       $zip->extractTo($this->tempDirectory);
       $zip->close();
 
@@ -112,7 +118,6 @@ class RestoreJob implements ShouldQueue
       $sqlFiles = array_filter($files, fn($file) => $file->getExtension() === 'sql');
 
       $count = count($sqlFiles);
-
       if ($count === 0) {
          throw new \Exception('No SQL file found in archive.');
       }
@@ -128,8 +133,8 @@ class RestoreJob implements ShouldQueue
    {
       $disk = Storage::disk($this->sourceDisk);
       $latestFile = collect($disk->files($this->sourceDirectory))
-         ->filter(fn (string $file) => Str::endsWith($file, ['.zip', '.sql', '.tar', '.gz', '.zst']))
-         ->mapWithKeys(fn (string $file) => [$file => $disk->lastModified($file)])
+         ->filter(fn(string $file) => Str::endsWith($file, ['.zip', '.sql', '.tar', '.gz', '.zst']))
+         ->mapWithKeys(fn(string $file) => [$file => $disk->lastModified($file)])
          ->sortDesc()
          ->keys()
          ->first();

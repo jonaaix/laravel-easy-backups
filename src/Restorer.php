@@ -19,6 +19,7 @@ final class Restorer
    private ?string $connection = null;
    private bool $shouldWipe = true;
    private bool $useLatest = false;
+   private ?string $saveCopyDisk = null;
 
    // Private constructor to enforce static entry points
    private function __construct() {}
@@ -30,8 +31,6 @@ final class Restorer
    {
       return new self();
    }
-
-   // TODO: Other restore types
 
    public function toDatabase(string $connection): self
    {
@@ -75,6 +74,12 @@ final class Restorer
       return $this;
    }
 
+   public function saveCopyTo(string $disk): self
+   {
+      $this->saveCopyDisk = $disk;
+      return $this;
+   }
+
    public function onQueue(string $queue): self
    {
       $this->queue = $queue;
@@ -101,6 +106,7 @@ final class Restorer
          password: $this->password,
          shouldWipe: $this->shouldWipe,
          useLatest: $this->useLatest,
+         saveCopyDisk: $this->saveCopyDisk,
       );
 
       if (is_null($this->connection) && is_null($this->queue)) {
@@ -121,12 +127,13 @@ final class Restorer
       $searchPath = $directory ?? config('easy-backups.defaults.database.remote_storage_path');
 
       return collect($storageDisk->files($searchPath))
-         ->filter(fn (string $file) => Str::endsWith($file, ['.zip', '.sql', '.tar', '.gz', '.zst']))
-         ->mapWithKeys(fn (string $file) => [$file => $storageDisk->lastModified($file)])
+         ->filter(fn(string $file) => Str::endsWith($file, ['.zip', '.sql', '.tar', '.gz', '.zst']))
+         ->mapWithKeys(fn(string $file) => [$file => $storageDisk->lastModified($file)])
          ->sortDesc()
          ->take($count)
          ->map(function (int $timestamp, string $file) use ($storageDisk): array {
             $extension = pathinfo($file, PATHINFO_EXTENSION);
+
             return [
                'path' => $file,
                'label' => sprintf(

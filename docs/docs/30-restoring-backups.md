@@ -108,51 +108,52 @@ Then, replace the entire content of the file with the following code. It combine
 namespace App\Console\Commands\Backup;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Storage;
 use Aaix\LaravelEasyBackups\Facades\Restorer;
 use function Laravel\Prompts\select;
 
 class DatabaseRestoreCommand extends Command
 {
-    protected $signature = 'backup:db:restore {--latest : Restore the latest backup without prompting}';
+    protected $signature = 'backup:db:restore 
+                            {--latest : Restore the latest backup without prompting}
+                            {--local : Use the local cache disk instead of S3 for a fast reset}';
 
-    protected $description = 'Restores a database backup, either the latest one or from an interactive selection.';
+    protected $description = 'Restores a database backup with optional local caching and cleanup.';
 
     public function handle(): int
     {
+        $sourceDisk = $this->option('local') ? 'local' : 's3';
+
         if ($this->option('latest')) {
-            return $this->restoreLatest();
+            return $this->restoreLatest($sourceDisk);
         }
 
-        return $this->restoreFromSelection();
+        return $this->restoreFromSelection($sourceDisk);
     }
 
-    private function restoreLatest(): int
+    private function restoreLatest(string $sourceDisk): int
     {
-        if (!$this->confirm('Are you sure you want to restore the LATEST backup? This will wipe the current database.')) {
-            return self::SUCCESS;
+        // Explicitly fetch the latest file to know its name for potential cleanup logic
+        $latestBackup = Restorer::getRecentBackups($sourceDisk, count: 1)->first();
+
+        if (!$latestBackup) {
+            $this->warn("No backups found on disk '{$sourceDisk}'.");
+            return self::FAILURE;
         }
 
-        $this->info('Starting restore of the LATEST backup...');
+        $this->info("Identified latest backup: " . basename($latestBackup['path']));
 
-        Restorer::database()
-            ->fromDisk('s3')
-            ->toDatabase(config('database.default'))
-            ->latest()
-            ->run();
-
-        $this->info('Latest database backup restored successfully!');
-        
-        return self::SUCCESS;
+        return $this->performRestore($sourceDisk, $latestBackup['path']);
     }
 
-    private function restoreFromSelection(): int
+    private function restoreFromSelection(string $sourceDisk): int
     {
-        $this->info('Fetching recent backups from disk...');
+        $this->info("Fetching recent backups from disk '{$sourceDisk}'...");
 
-        $backups = Restorer::getRecentBackups('s3');
+        $backups = Restorer::getRecentBackups($sourceDisk);
 
         if ($backups->isEmpty()) {
-            $this->warn('No backups found on disk \'s3\'.');
+            $this->warn("No backups found on disk '{$sourceDisk}'.");
             return self::SUCCESS;
         }
 
@@ -163,19 +164,69 @@ class DatabaseRestoreCommand extends Command
             required: true
         );
 
-        if ($this->confirm("Are you sure you want to restore '" . basename($selectedPath) . "'? This will wipe the current database.")) {
-            $this->info("Starting restore of '" . basename($selectedPath) . "'...");
+        return $this->performRestore($sourceDisk, $selectedPath);
+    }
 
-            Restorer::database()
-                ->fromDisk('s3')
-                ->fromPath($selectedPath)
-                ->toDatabase(config('database.default'))
-                ->run();
+    private function performRestore(string $sourceDisk, string $path): int
+    {
+        $filename = basename($path);
 
-            $this->info('Database backup restored successfully!');
+        if (!$this->confirm("Are you sure you want to restore '{$filename}'? This will wipe the current database.")) {
+            return self::SUCCESS;
+        }
+
+        $restorer = Restorer::database()
+            ->fromDisk($sourceDisk)
+            ->fromPath($path)
+            ->toDatabase(config('database.default'));
+
+        $shouldCleanup = false;
+        $localDisk = 'local';
+
+        // Interactive Workflow for Remote Sources
+        // Logic: Only ask for cleanup IF the user explicitly chooses to save a local copy.
+        if ($sourceDisk !== $localDisk) {
+            if ($this->confirm('Do you want to save a copy to the local disk for faster future restores?')) {
+                $restorer->saveCopyTo($localDisk);
+
+                // Nested confirmation: Only asked if the parent is YES
+                if ($this->confirm('Do you want to remove ALL other older backups from the local disk (keep only this one)?')) {
+                    $shouldCleanup = true;
+                }
+            }
+        }
+
+        $this->info("Starting restore...");
+        
+        $restorer->run();
+
+        $this->info('Database backup restored successfully!');
+
+        // Run cleanup only if requested AND restore was successful
+        if ($shouldCleanup) {
+            $this->cleanupOldLocalBackups($localDisk, $filename);
         }
 
         return self::SUCCESS;
+    }
+
+    private function cleanupOldLocalBackups(string $diskName, string $keepFilename): void
+    {
+        $this->info('Cleaning up old local backups...');
+        
+        $disk = Storage::disk($diskName);
+        $files = $disk->files(); 
+        $deletedCount = 0;
+
+        foreach ($files as $file) {
+            // Safety check: Only delete file if it is NOT the one we just downloaded/restored
+            if (basename($file) !== $keepFilename) {
+                $disk->delete($file);
+                $deletedCount++;
+            }
+        }
+
+        $this->info("Cleanup complete. Deleted {$deletedCount} old file(s).");
     }
 }
 ```
@@ -188,4 +239,7 @@ php artisan backup:db:restore
 
 # To automatically restore the latest backup
 php artisan backup:db:restore --latest
+
+# To restore a local backup instead of S3
+php artisan backup:db:restore --local
 ```
