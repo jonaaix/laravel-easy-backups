@@ -12,9 +12,9 @@ use Aaix\LaravelEasyBackups\Services\BackupProcessor;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
-use Illuminate\Notifications\Notifiable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Notification;
 use Throwable;
@@ -61,6 +61,9 @@ class BackupJob implements ShouldQueue
       return $this->namePrefix;
    }
 
+   /**
+    * @return array{paths: string[], disk: string, size: int}
+    */
    public function handle(BackupProcessor $processor): array
    {
       if ($this->beforeHook && class_exists($this->beforeHook)) {
@@ -84,7 +87,8 @@ class BackupJob implements ShouldQueue
             event(new BackupSucceeded($primaryPath, $result['disk'], $result['size']));
          }
 
-         return $result['paths'];
+         // Return full result for CLI feedback
+         return $result;
       } catch (Throwable $e) {
          if (!empty($this->notifyOnFailure['channels'])) {
             $this->sendFailureNotification($e);
@@ -136,7 +140,6 @@ class BackupJob implements ShouldQueue
          }
       };
    }
-
 
    public function getWorkingDirectory(): string
    {
