@@ -12,12 +12,11 @@ use Aaix\LaravelEasyBackups\Services\BackupProcessor;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Notifications\Notifiable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Notification;
-use Illuminate\Support\Str;
 use Throwable;
 
 class BackupJob implements ShouldQueue
@@ -33,6 +32,7 @@ class BackupJob implements ShouldQueue
       private readonly array $directoriesToInclude,
       private readonly ?string $saveTo,
       private readonly int $maxRemoteBackups,
+      private readonly int $maxRemoteDays,
       private readonly int $maxLocalBackups,
       private readonly bool $keepLocal,
       private readonly ?string $localStorageDir,
@@ -107,35 +107,34 @@ class BackupJob implements ShouldQueue
 
    private function sendFailureNotification(Throwable $exception): void
    {
-       $notifiable = $this->createNotifiable($this->notifyOnFailure);
-       Notification::send($notifiable, new BackupFailedNotification($this->getConfig(), $exception));
+      $notifiable = $this->createNotifiable($this->notifyOnFailure);
+      Notification::send($notifiable, new BackupFailedNotification($this->getConfig(), $exception));
    }
 
    private function createNotifiable(array $notificationConfig): object
    {
-       return new class($notificationConfig) {
-           use Notifiable;
+      return new class($notificationConfig) {
+         use Notifiable;
+         public array $routes;
 
-           public array $routes;
+         public function __construct(private readonly array $notificationConfig)
+         {
+            $this->routes = [];
+            foreach ($this->notificationConfig['channels'] as $channel) {
+               $this->routes[$channel] = $this->notificationConfig['to'];
+            }
+         }
 
-           public function __construct(private readonly array $notificationConfig)
-           {
-                $this->routes = [];
-                foreach ($this->notificationConfig['channels'] as $channel) {
-                    $this->routes[$channel] = $this->notificationConfig['to'];
-                }
-           }
+         public function routeNotificationFor(string $driver): mixed
+         {
+            return $this->routes[$driver] ?? null;
+         }
 
-           public function routeNotificationFor(string $driver): mixed
-           {
-                return $this->routes[$driver] ?? null;
-           }
-
-           public function getKey(): int
-           {
-               return 1;
-           }
-       };
+         public function getKey(): int
+         {
+            return 1;
+         }
+      };
    }
 
 
@@ -152,6 +151,7 @@ class BackupJob implements ShouldQueue
          'directoriesToInclude' => $this->directoriesToInclude,
          'saveTo' => $this->saveTo,
          'maxRemoteBackups' => $this->maxRemoteBackups,
+         'maxRemoteDays' => $this->maxRemoteDays,
          'maxLocalBackups' => $this->maxLocalBackups,
          'keepLocal' => $this->keepLocal,
          'localStorageDir' => $this->getLocalStorageDir(),

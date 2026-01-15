@@ -13,6 +13,7 @@ final class Backup
    private array $directoriesToInclude = [];
    private ?string $saveTo = null;
    private int $maxRemoteBackups = 0;
+   private int $maxRemoteDays = 0;
    private int $maxLocalBackups = 0;
    private bool $keepLocal = false;
    private ?string $queue = null;
@@ -104,6 +105,12 @@ final class Backup
       return $this;
    }
 
+   public function maxRemoteDays(int $days): self
+   {
+      $this->maxRemoteDays = $days;
+      return $this;
+   }
+
    public function maxLocalBackups(int $count): self
    {
       $this->maxLocalBackups = $count;
@@ -179,6 +186,7 @@ final class Backup
          directoriesToInclude: $this->directoriesToInclude,
          saveTo: $this->saveTo,
          maxRemoteBackups: $this->maxRemoteBackups,
+         maxRemoteDays: $this->maxRemoteDays,
          maxLocalBackups: $this->maxLocalBackups,
          keepLocal: $this->keepLocal,
          localStorageDir: $this->localStorageDir,
@@ -199,7 +207,6 @@ final class Backup
 
       /** @var PendingDispatch $dispatch */
       $dispatch = dispatch($job)->onConnection($this->connection);
-
       if ($this->queue) {
          $dispatch->onQueue($this->queue);
       }

@@ -13,6 +13,7 @@ use Aaix\LaravelEasyBackups\BackupJob;
 use Aaix\LaravelEasyBackups\DumperFactory;
 use Aaix\LaravelEasyBackups\Enums\CompressionFormatEnum;
 use Aaix\LaravelEasyBackups\Events\BackupInvalid;
+use Aaix\LaravelEasyBackups\Events\CleanupSucceeded;
 use Exception;
 use Illuminate\Support\Facades\File;
 
@@ -51,7 +52,7 @@ class BackupProcessor
          // Temporary base path without extension
          $tempBasePath = $workingDirectory . DIRECTORY_SEPARATOR . "{$namePrefix}_{$timestamp}";
 
-         // Default extension to use for the call (CreateArchive enforces logic internally but needs a target path)
+         // Default extension to use for the call
          $initialExtension = $config['encryptionPassword'] ? 'zip' : 'tar';
          $tempArchivePath = "{$tempBasePath}.{$initialExtension}";
 
@@ -118,7 +119,13 @@ class BackupProcessor
       $config = $job->getConfig();
 
       if ($config['saveTo']) {
-         $this->cleanupBackupsAction->execute($config['saveTo'], $config['remoteStorageDir'], $config['maxRemoteBackups']);
+         $this->cleanupBackupsAction->execute(
+            disk: $config['saveTo'],
+            path: $config['remoteStorageDir'],
+            maxBackups: $config['maxRemoteBackups'],
+            maxDays: $config['maxRemoteDays']
+         );
+
          if (!$config['keepLocal']) {
             File::delete($finalLocalPaths);
          }
@@ -154,6 +161,7 @@ class BackupProcessor
    private function verifyBackup(string $archivePath): void
    {
       $verificationResult = $this->verifyBackupAction->execute($archivePath);
+
       if ($verificationResult !== 'ok') {
          event(new BackupInvalid($archivePath, 'local', $verificationResult));
          throw new Exception("Backup verification failed: {$verificationResult}");

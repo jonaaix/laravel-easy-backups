@@ -4,22 +4,23 @@ declare(strict_types=1);
 
 namespace Aaix\LaravelEasyBackups\Actions;
 
+use Aaix\LaravelEasyBackups\Events\CleanupSucceeded;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 final class CleanupBackupsAction
 {
-   public function execute(string $disk, string $path, int $maxBackups): void
+   public function execute(string $disk, string $path, int $maxBackups, int $maxDays = 0): void
    {
-      if ($maxBackups <= 0) {
+      if ($maxBackups <= 0 && $maxDays <= 0) {
          return;
       }
 
       if ($disk === 'local') {
          $this->cleanupLocalBackups($path, $maxBackups);
       } else {
-         $this->cleanupRemoteBackups($disk, $path, $maxBackups);
+         $this->cleanupRemoteBackups($disk, $path, $maxBackups, $maxDays);
       }
    }
 
@@ -29,18 +30,45 @@ final class CleanupBackupsAction
       return Str::endsWith($filename, ['.zip', '.tar', '.gz', '.zst', '.sql']);
    }
 
-   private function cleanupRemoteBackups(string $disk, string $path, int $maxBackups): void
+   private function cleanupRemoteBackups(string $disk, string $path, int $maxBackups, int $maxDays): void
    {
       $remoteDisk = Storage::disk($disk);
 
+      // Fetch all backup files
       $allBackups = collect($remoteDisk->files($path))
          ->filter(fn($file) => $this->isBackupFile(basename($file)))
          ->mapWithKeys(fn($file) => [$file => $remoteDisk->lastModified($file)])
          ->sort(); // Sort oldest to newest
 
-      if ($allBackups->count() > $maxBackups) {
+      $deletedCount = 0;
+
+      // 1. Cleanup by Age (Days)
+      if ($maxDays > 0) {
+         $threshold = now()->subDays($maxDays)->getTimestamp();
+
+         $expiredBackups = $allBackups->filter(fn($timestamp) => $timestamp < $threshold);
+
+         if ($expiredBackups->isNotEmpty()) {
+            $remoteDisk->delete($expiredBackups->keys()->toArray());
+            $deletedCount += $expiredBackups->count();
+
+            // Remove deleted items from the collection for the next check
+            $allBackups = $allBackups->diffKeys($expiredBackups);
+         }
+      }
+
+      // 2. Cleanup by Count
+      if ($maxBackups > 0 && $allBackups->count() > $maxBackups) {
          $filesToDelete = $allBackups->keys()->slice(0, $allBackups->count() - $maxBackups);
-         $remoteDisk->delete($filesToDelete->toArray());
+
+         if ($filesToDelete->isNotEmpty()) {
+            $remoteDisk->delete($filesToDelete->toArray());
+            $deletedCount += $filesToDelete->count();
+         }
+      }
+
+      if ($deletedCount > 0) {
+         event(new CleanupSucceeded($disk, $path, $deletedCount));
       }
    }
 
@@ -55,9 +83,12 @@ final class CleanupBackupsAction
          ->mapWithKeys(fn(\SplFileInfo $file) => [$file->getPathname() => $file->getMTime()])
          ->sort(); // Sort oldest to newest
 
-      if ($allBackups->count() > $maxBackups) {
+      if ($maxBackups > 0 && $allBackups->count() > $maxBackups) {
          $filesToDelete = $allBackups->keys()->slice(0, $allBackups->count() - $maxBackups);
+
          File::delete($filesToDelete->toArray());
+
+         event(new CleanupSucceeded('local', $path, $filesToDelete->count()));
       }
    }
 }
