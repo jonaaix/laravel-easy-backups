@@ -13,7 +13,6 @@ use Aaix\LaravelEasyBackups\BackupJob;
 use Aaix\LaravelEasyBackups\DumperFactory;
 use Aaix\LaravelEasyBackups\Enums\CompressionFormatEnum;
 use Aaix\LaravelEasyBackups\Events\BackupInvalid;
-use Aaix\LaravelEasyBackups\Events\CleanupSucceeded;
 use Exception;
 use Illuminate\Support\Facades\File;
 
@@ -88,27 +87,35 @@ class BackupProcessor
          // Only move if source and destination are different paths
          if ($sourcePath !== $finalPath) {
             if (File::exists($finalPath)) {
-               File::delete($finalPath); // Overwrite protection
+               File::delete($finalPath);
             }
             File::move($sourcePath, $finalPath);
          }
          $finalLocalPaths[] = $finalPath;
       }
 
-      // 4. Remote Upload
+      // Calculate size BEFORE upload/cleanup to ensure accuracy
+      $totalSize = array_reduce($finalLocalPaths, fn($sum, $path) => $sum + (File::exists($path) ? File::size($path) : 0), 0);
+
       if ($config['saveTo']) {
          foreach ($finalLocalPaths as $localPath) {
             $this->uploadBackupAction->execute($localPath, $config['saveTo'], $config['remoteStorageDir']);
          }
       }
 
-      // 5. Cleanup
       $this->performCleanup($job, $finalLocalPaths);
 
-      $totalSize = array_reduce($finalLocalPaths, fn($sum, $path) => $sum + (File::exists($path) ? File::size($path) : 0), 0);
+      // Determine correct return paths (Remote vs Local)
+      $returnPaths = $finalLocalPaths;
+      if ($config['saveTo'] && !$config['keepLocal']) {
+         $returnPaths = array_map(fn($path) =>
+            rtrim($config['remoteStorageDir'], '/') . '/' . basename($path),
+            $finalLocalPaths
+         );
+      }
 
       return [
-         'paths' => $finalLocalPaths,
+         'paths' => $returnPaths,
          'disk' => $config['saveTo'] ?? 'local',
          'size' => $totalSize,
       ];
