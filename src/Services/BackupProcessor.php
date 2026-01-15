@@ -36,22 +36,17 @@ class BackupProcessor
       $artifactsInTemp = [];
       $finalLocalPaths = [];
 
-      // 1. Generate Source Artifacts
       if (!empty($config['databasesToInclude'])) {
          $artifactsInTemp = $this->createDatabaseDumps($config['databasesToInclude'], $workingDirectory);
       } else {
          $artifactsInTemp = $this->findFiles($config['filesToInclude']);
       }
 
-      // 2. Handle Compression (Optional / Smart)
       if ($config['shouldCompress']) {
          $timestamp = date('Y-m-d_H-i-s');
          $namePrefix = $job->getNamePrefix();
 
-         // Temporary base path without extension
          $tempBasePath = $workingDirectory . DIRECTORY_SEPARATOR . "{$namePrefix}_{$timestamp}";
-
-         // Default extension to use for the call
          $initialExtension = $config['encryptionPassword'] ? 'zip' : 'tar';
          $tempArchivePath = "{$tempBasePath}.{$initialExtension}";
 
@@ -62,13 +57,11 @@ class BackupProcessor
             $config['encryptionPassword']
          );
 
-         // Rename if the resulting format differs from our initial guess
          $correctPath = "{$tempBasePath}." . $format->getExtension();
          if ($tempArchivePath !== $correctPath) {
             File::move($tempArchivePath, $correctPath);
          }
 
-         // Strict verification only for ZIPs
          if ($format === CompressionFormatEnum::ZIP) {
             $this->verifyBackup($correctPath);
          }
@@ -76,7 +69,6 @@ class BackupProcessor
          $artifactsInTemp = [$correctPath];
       }
 
-      // 3. Move to Local Storage (Robust Implementation)
       $targetDir = $config['localStorageDir'];
       File::ensureDirectoryExists($targetDir);
 
@@ -84,7 +76,6 @@ class BackupProcessor
          $filename = basename($sourcePath);
          $finalPath = $targetDir . DIRECTORY_SEPARATOR . $filename;
 
-         // Only move if source and destination are different paths
          if ($sourcePath !== $finalPath) {
             if (File::exists($finalPath)) {
                File::delete($finalPath);
@@ -94,7 +85,6 @@ class BackupProcessor
          $finalLocalPaths[] = $finalPath;
       }
 
-      // Calculate size BEFORE upload/cleanup to ensure accuracy
       $totalSize = array_reduce($finalLocalPaths, fn($sum, $path) => $sum + (File::exists($path) ? File::size($path) : 0), 0);
 
       if ($config['saveTo']) {
@@ -105,7 +95,6 @@ class BackupProcessor
 
       $this->performCleanup($job, $finalLocalPaths);
 
-      // Determine correct return paths (Remote vs Local)
       $returnPaths = $finalLocalPaths;
       if ($config['saveTo'] && !$config['keepLocal']) {
          $returnPaths = array_map(fn($path) =>
@@ -116,7 +105,7 @@ class BackupProcessor
 
       return [
          'paths' => $returnPaths,
-         'disk' => $config['saveTo'] ?? 'local',
+         'disk' => $config['saveTo'] ?? $config['localDisk'],
          'size' => $totalSize,
       ];
    }
@@ -139,7 +128,19 @@ class BackupProcessor
       }
 
       if ($config['keepLocal'] || !$config['saveTo']) {
-         $this->cleanupBackupsAction->execute('local', $config['localStorageDir'], $config['maxLocalBackups']);
+         // Determine correct path type for cleanup action
+         $disk = $config['localDisk'];
+         $driver = config("filesystems.disks.{$disk}.driver");
+
+         // If the driver is local, the action uses File::files() which needs an absolute path.
+         // If the driver is NOT local (e.g. S3 but treated as local backup storage), it uses Storage::files() which needs a relative path.
+         $cleanupPath = ($driver === 'local') ? $config['localStorageDir'] : $config['localStorageRelativePath'];
+
+         $this->cleanupBackupsAction->execute(
+            $disk,
+            $cleanupPath,
+            $config['maxLocalBackups']
+         );
       }
    }
 

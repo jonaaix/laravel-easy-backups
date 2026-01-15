@@ -17,6 +17,7 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Storage;
 use Throwable;
 
 class BackupJob implements ShouldQueue
@@ -81,13 +82,11 @@ class BackupJob implements ShouldQueue
             $this->sendSuccessNotification($result);
          }
 
-         // The event receives the primary artifact path and the total size.
          $primaryPath = $result['paths'][0] ?? null;
          if ($primaryPath) {
             event(new BackupSucceeded($primaryPath, $result['disk'], $result['size']));
          }
 
-         // Return full result for CLI feedback
          return $result;
       } catch (Throwable $e) {
          if (!empty($this->notifyOnFailure['channels'])) {
@@ -157,7 +156,9 @@ class BackupJob implements ShouldQueue
          'maxRemoteDays' => $this->maxRemoteDays,
          'maxLocalBackups' => $this->maxLocalBackups,
          'keepLocal' => $this->keepLocal,
+         'localDisk' => $this->getLocalDisk(),
          'localStorageDir' => $this->getLocalStorageDir(),
+         'localStorageRelativePath' => $this->getLocalStorageRelativePath(),
          'remoteStorageDir' => $this->getRemoteStorageDir(),
          'encryptionPassword' => $this->encryptionPassword,
          'notifyOnSuccess' => $this->notifyOnSuccess,
@@ -174,8 +175,17 @@ class BackupJob implements ShouldQueue
          return $this->localStorageDir;
       }
 
-      $path = config('easy-backups.defaults.database.local_storage_path');
-      return str_starts_with($path, '/') ? $path : storage_path($path);
+      return Storage::disk($this->getLocalDisk())->path($this->getLocalStorageRelativePath());
+   }
+
+   private function getLocalStorageRelativePath(): string
+   {
+      return config('easy-backups.defaults.database.local_storage_path', 'easy-backups/database');
+   }
+
+   private function getLocalDisk(): string
+   {
+      return config('easy-backups.defaults.database.local_disk', 'local');
    }
 
    private function getRemoteStorageDir(): string

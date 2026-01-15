@@ -17,7 +17,11 @@ final class CleanupBackupsAction
          return;
       }
 
-      if ($disk === 'local') {
+      // Determine if we are dealing with a local filesystem driver.
+      // This allows us to use optimized File operations regardless of the disk name (e.g. 'my_local').
+      $driver = config("filesystems.disks.{$disk}.driver");
+
+      if ($driver === 'local') {
          $this->cleanupLocalBackups($path, $maxBackups);
       } else {
          $this->cleanupRemoteBackups($disk, $path, $maxBackups, $maxDays);
