@@ -28,6 +28,7 @@ final class Backup
    private ?string $tempDirectory = null;
    private bool $shouldCompress = false;
    private string $namePrefix = 'backup';
+   private ?string $filenameSuffix = null;
 
    /**
     * Start a database-specific backup.
@@ -49,6 +50,12 @@ final class Backup
       $instance->namePrefix = 'files';
       $instance->shouldCompress = true;
       return $instance;
+   }
+
+   public function setName(string $name): self
+   {
+      $this->filenameSuffix = $name;
+      return $this;
    }
 
    public function includeStorage(?string $path = null): self
@@ -81,18 +88,12 @@ final class Backup
       return $this;
    }
 
-   /**
-    * Set a custom directory path for the remote storage.
-    */
    public function setRemoteStorageDir(string $path): self
    {
       $this->remoteStorageDir = $path;
       return $this;
    }
 
-   /**
-    * Set a custom directory path for local storage before upload.
-    */
    public function setLocalStorageDir(string $path): self
    {
       $this->localStorageDir = $path;
@@ -198,7 +199,8 @@ final class Backup
          afterHook: $this->afterHook,
          tempDirectory: $this->tempDirectory,
          shouldCompress: $this->shouldCompress,
-         namePrefix: $this->namePrefix
+         namePrefix: $this->namePrefix,
+         filenameSuffix: $this->filenameSuffix,
       );
 
       if (is_null($this->connection) && is_null($this->queue)) {

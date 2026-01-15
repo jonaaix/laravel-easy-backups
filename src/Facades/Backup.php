@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Facade;
 /**
  * @method static \Aaix\LaravelEasyBackups\Backup database(string $connection)
  * @method static \Aaix\LaravelEasyBackups\Backup files()
+ * @method static \Aaix\LaravelEasyBackups\Backup setName(string $name)
  * @method static \Aaix\LaravelEasyBackups\Backup includeFiles(array $files)
  * @method static \Aaix\LaravelEasyBackups\Backup includeDirectories(array $directories)
  * @method static \Aaix\LaravelEasyBackups\Backup includeStorage(?string $path = null)

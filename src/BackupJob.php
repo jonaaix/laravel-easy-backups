@@ -46,6 +46,7 @@ class BackupJob implements ShouldQueue
       ?string $tempDirectory = null,
       private readonly bool $shouldCompress = false,
       private readonly string $namePrefix = 'backup',
+      private readonly ?string $filenameSuffix = null,
    ) {
       if ($tempDirectory) {
          $this->workingDirectory = $tempDirectory;
@@ -166,6 +167,7 @@ class BackupJob implements ShouldQueue
          'beforeHook' => $this->beforeHook,
          'afterHook' => $this->afterHook,
          'shouldCompress' => $this->shouldCompress,
+         'filenameSuffix' => $this->filenameSuffix,
       ];
    }
 

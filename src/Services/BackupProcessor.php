@@ -15,6 +15,7 @@ use Aaix\LaravelEasyBackups\Enums\CompressionFormatEnum;
 use Aaix\LaravelEasyBackups\Events\BackupInvalid;
 use Exception;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
 
 class BackupProcessor
 {
@@ -33,11 +34,16 @@ class BackupProcessor
       $workingDirectory = $job->getWorkingDirectory();
       File::ensureDirectoryExists($workingDirectory);
 
+      // Calculate suffix once
+      $suffix = isset($config['filenameSuffix']) && $config['filenameSuffix'] !== ''
+         ? '_' . Str::slug($config['filenameSuffix'])
+         : '';
+
       $artifactsInTemp = [];
       $finalLocalPaths = [];
 
       if (!empty($config['databasesToInclude'])) {
-         $artifactsInTemp = $this->createDatabaseDumps($config['databasesToInclude'], $workingDirectory);
+         $artifactsInTemp = $this->createDatabaseDumps($config['databasesToInclude'], $workingDirectory, $suffix);
       } else {
          $artifactsInTemp = $this->findFiles($config['filesToInclude']);
       }
@@ -46,7 +52,8 @@ class BackupProcessor
          $timestamp = date('Y-m-d_H-i-s');
          $namePrefix = $job->getNamePrefix();
 
-         $tempBasePath = $workingDirectory . DIRECTORY_SEPARATOR . "{$namePrefix}_{$timestamp}";
+         // Append suffix to archive filename
+         $tempBasePath = $workingDirectory . DIRECTORY_SEPARATOR . "{$namePrefix}_{$timestamp}{$suffix}";
          $initialExtension = $config['encryptionPassword'] ? 'zip' : 'tar';
          $tempArchivePath = "{$tempBasePath}.{$initialExtension}";
 
@@ -128,12 +135,9 @@ class BackupProcessor
       }
 
       if ($config['keepLocal'] || !$config['saveTo']) {
-         // Determine correct path type for cleanup action
          $disk = $config['localDisk'];
          $driver = config("filesystems.disks.{$disk}.driver");
 
-         // If the driver is local, the action uses File::files() which needs an absolute path.
-         // If the driver is NOT local (e.g. S3 but treated as local backup storage), it uses Storage::files() which needs a relative path.
          $cleanupPath = ($driver === 'local') ? $config['localStorageDir'] : $config['localStorageRelativePath'];
 
          $this->cleanupBackupsAction->execute(
@@ -144,13 +148,16 @@ class BackupProcessor
       }
    }
 
-   private function createDatabaseDumps(array $databases, string $workingDirectory): array
+   private function createDatabaseDumps(array $databases, string $workingDirectory, string $suffix): array
    {
       $dumpPaths = [];
       foreach ($databases as $dbName) {
          $dumper = DumperFactory::create($dbName);
          $timestamp = date('Y-m-d_H-i-s');
-         $dumpPath = $workingDirectory . DIRECTORY_SEPARATOR . "db-dump_{$dbName}_{$timestamp}.sql";
+
+         // Append suffix to SQL filename
+         $dumpPath = $workingDirectory . DIRECTORY_SEPARATOR . "db-dump_{$dbName}_{$timestamp}{$suffix}.sql";
+
          $this->createDatabaseDumpAction->execute($dumper, $dumpPath);
          $dumpPaths[] = $dumpPath;
       }
