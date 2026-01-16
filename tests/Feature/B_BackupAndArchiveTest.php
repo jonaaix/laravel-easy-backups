@@ -60,7 +60,6 @@ it('creates a password-protected backup archive', function () {
    $this->createTestTableAndDataForDump('sqlite_test');
    $password = 'secret-password';
 
-   // NEW API USAGE: toLocalDir() statt setLocalStorageDir()
    $result = Backup::database('sqlite_test')
       ->setLocalStorageDir($tempDir)
       ->setTempDirectory($tempDir)
