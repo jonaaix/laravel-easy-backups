@@ -16,14 +16,15 @@ it('creates a valid, compressed backup archive for each driver', function (strin
 
    $this->createTestTableAndDataForDump($connection);
 
-   $backupPaths = Backup::database($connection)
+   $result = Backup::database($connection)
       ->setLocalStorageDir($tempDir)
       ->setTempDirectory($tempDir)
       ->compress()
       ->run();
 
-   expect($backupPaths)->toBeArray()->toHaveCount(1);
-   $backupFile = $backupPaths[0];
+   expect($result)->toBeArray()->toHaveKeys(['paths', 'disk', 'size']);
+   expect($result['paths'])->toBeArray()->toHaveCount(1);
+   $backupFile = $result['paths'][0];
 
    expect(File::exists($backupFile))->toBeTrue();
 
@@ -59,15 +60,15 @@ it('creates a password-protected backup archive', function () {
    $this->createTestTableAndDataForDump('sqlite_test');
    $password = 'secret-password';
 
-   // NEW API USAGE: toLocalDir() statt setLocalStorageDir()
-   $backupPaths = Backup::database('sqlite_test')
+   $result = Backup::database('sqlite_test')
       ->setLocalStorageDir($tempDir)
       ->setTempDirectory($tempDir)
       ->encryptWithPassword($password)
       ->run();
 
-   expect($backupPaths)->toBeArray()->toHaveCount(1);
-   $backupFile = $backupPaths[0];
+   expect($result)->toBeArray()->toHaveKeys(['paths', 'disk', 'size']);
+   expect($result['paths'])->toBeArray()->toHaveCount(1);
+   $backupFile = $result['paths'][0];
    expect(File::exists($backupFile))->toBeTrue();
    expect($backupFile)->toEndWith('.zip'); // Password implies ZIP
 
