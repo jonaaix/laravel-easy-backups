@@ -34,9 +34,9 @@ class BackupProcessor
       $workingDirectory = $job->getWorkingDirectory();
       File::ensureDirectoryExists($workingDirectory);
 
-      // Calculate suffix once
+      // 'LocalDevTest3' -> 'local_dev_test_3'
       $suffix = isset($config['filenameSuffix']) && $config['filenameSuffix'] !== ''
-         ? '_' . Str::slug($config['filenameSuffix'])
+         ? '_' . Str::slug(Str::snake($config['filenameSuffix']), '_')
          : '';
 
       $artifactsInTemp = [];
@@ -52,7 +52,6 @@ class BackupProcessor
          $timestamp = date('Y-m-d_H-i-s');
          $namePrefix = $job->getNamePrefix();
 
-         // Append suffix to archive filename
          $tempBasePath = $workingDirectory . DIRECTORY_SEPARATOR . "{$namePrefix}_{$timestamp}{$suffix}";
          $initialExtension = $config['encryptionPassword'] ? 'zip' : 'tar';
          $tempArchivePath = "{$tempBasePath}.{$initialExtension}";
@@ -155,7 +154,6 @@ class BackupProcessor
          $dumper = DumperFactory::create($dbName);
          $timestamp = date('Y-m-d_H-i-s');
 
-         // Append suffix to SQL filename
          $dumpPath = $workingDirectory . DIRECTORY_SEPARATOR . "db-dump_{$dbName}_{$timestamp}{$suffix}.sql";
 
          $this->createDatabaseDumpAction->execute($dumper, $dumpPath);
