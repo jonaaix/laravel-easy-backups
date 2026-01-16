@@ -10,7 +10,6 @@ use Aaix\LaravelEasyBackups\Importers\MariaDbImporter;
 use Aaix\LaravelEasyBackups\Importers\MySqlImporter;
 use Aaix\LaravelEasyBackups\Importers\PostgreSqlImporter;
 use Aaix\LaravelEasyBackups\Importers\SqliteImporter;
-use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 final class ImporterFactory
@@ -27,6 +26,7 @@ final class ImporterFactory
             database: $config['database'],
             username: $config['username'],
             password: $config['password'],
+            processExecutor: $processExecutor,
          ),
          'mariadb' => new MariaDbImporter(
             host: $config['host'],
@@ -34,6 +34,7 @@ final class ImporterFactory
             database: $config['database'],
             username: $config['username'],
             password: $config['password'],
+            processExecutor: $processExecutor,
          ),
          'pgsql' => new PostgreSqlImporter(
             host: $config['host'],

@@ -30,7 +30,11 @@ final class SqliteImporter implements Importer
       );
 
       try {
-         $this->processExecutor->execute($command, dirname($path));
+         $this->processExecutor->execute(
+            command: $command,
+            cwd: dirname($path),
+            timeout: null
+         );
       } catch (\Exception $e) {
          throw new ImportFailedException('Failed to import sqlite dump: ' . $e->getMessage());
       }

@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Aaix\LaravelEasyBackups\Importers;
 
 use Aaix\LaravelEasyBackups\Contracts\Importer;
+use Aaix\LaravelEasyBackups\Contracts\ProcessExecutor;
 use Aaix\LaravelEasyBackups\Exceptions\ImportFailedException;
-use Illuminate\Support\Facades\Process;
 
 final class MySqlImporter implements Importer
 {
@@ -16,28 +16,30 @@ final class MySqlImporter implements Importer
       private readonly string $database,
       private readonly string $username,
       private readonly string $password,
+      private readonly ProcessExecutor $processExecutor,
    ) {
    }
 
    public function importFromFile(string $path): void
    {
-      $command = [
-         'mysql',
-         "-h{$this->host}",
-         "-P{$this->port}",
-         "-u{$this->username}",
-      ];
+      $command = sprintf(
+         'mysql -h%s -P%d -u%s %s %s < %s',
+         escapeshellarg($this->host),
+         $this->port,
+         escapeshellarg($this->username),
+         $this->password ? '-p' . escapeshellarg($this->password) : '',
+         escapeshellarg($this->database),
+         escapeshellarg($path)
+      );
 
-      if ($this->password) {
-         $command[] = "-p{$this->password}";
-      }
-
-      $command[] = $this->database;
-
-      $process = Process::input(fopen($path, 'r'))->run($command);
-
-      if ($process->failed()) {
-         throw new ImportFailedException('Failed to import mysql dump: ' . $process->errorOutput());
+      try {
+         $this->processExecutor->execute(
+            command: $command,
+            cwd: dirname($path),
+            timeout: null
+         );
+      } catch (\Exception $e) {
+         throw new ImportFailedException('Failed to import mysql dump: ' . $e->getMessage());
       }
    }
 }

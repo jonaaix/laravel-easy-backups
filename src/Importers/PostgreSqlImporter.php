@@ -36,7 +36,12 @@ final class PostgreSqlImporter implements Importer
       ];
 
       try {
-         $this->processExecutor->execute($command, dirname($path), $env);
+         $this->processExecutor->execute(
+            command: $command,
+            cwd: dirname($path),
+            env: $env,
+            timeout: null
+         );
       } catch (\Exception $e) {
          throw new ImportFailedException('Failed to import postgresql dump: ' . $e->getMessage());
       }
