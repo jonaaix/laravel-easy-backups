@@ -204,8 +204,7 @@ final class Backup
       );
 
       if (is_null($this->connection) && is_null($this->queue)) {
-         $result = app()->call([$job, 'handle']);
-         return $result['paths'] ?? [];
+         return app()->call([$job, 'handle']);
       }
 
       /** @var PendingDispatch $dispatch */
