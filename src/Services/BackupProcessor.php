@@ -36,7 +36,7 @@ class BackupProcessor
 
       // 'LocalDevTest3' -> 'local_dev_test_3'
       $suffix = isset($config['filenameSuffix']) && $config['filenameSuffix'] !== ''
-         ? '_' . Str::slug(Str::snake($config['filenameSuffix']), '_')
+         ? '_' . Str::slug(Str::snake($config['filenameSuffix']))
          : '';
 
       $artifactsInTemp = [];
