@@ -26,6 +26,10 @@ abstract class DbDumper implements Dumper
 
       // CWD for direct execution should be the output path.
       // For Docker, the executor's CWD (project root) is used.
-      $this->executor->execute($command, dirname($path));
+      $this->executor->execute(
+         command: $command,
+         cwd: dirname($path),
+         timeout: null
+      );
    }
 }

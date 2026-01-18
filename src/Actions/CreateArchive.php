@@ -82,7 +82,11 @@ final class CreateArchive
       $command = sprintf('tar %s -cf %s %s', $flag, escapeshellarg($path), $sourcesString);
 
       // Execute in the root directory to allow absolute paths in sources
-      $this->executor->execute($command, '/');
+      $this->executor->execute(
+         command: $command,
+         cwd: '/',
+         timeout: null
+      );
    }
 
    private function createZip(string $path, array $files, array $directories, ?string $password): void

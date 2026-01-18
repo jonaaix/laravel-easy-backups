@@ -59,7 +59,7 @@ class RestoreJob implements ShouldQueue
                : basename($this->sourcePath);
 
             // Upload via Stream to prevent OOM on large files
-            Storage::disk($this->saveCopyDisk)->put($targetPath, fopen($localPath, 'r'));
+            Storage::disk($this->saveCopyDisk)->put($targetPath, fopen($localPath, 'rb'));
          }
 
          $dumpPath = match (true) {
