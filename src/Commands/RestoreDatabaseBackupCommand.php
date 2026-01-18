@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Aaix\LaravelEasyBackups\Commands;
 
 use Aaix\LaravelEasyBackups\Facades\Restorer;
+use Aaix\LaravelEasyBackups\Services\PathGenerator;
 use Illuminate\Console\Command;
 use function Laravel\Prompts\select;
 
@@ -23,8 +24,11 @@ class RestoreDatabaseBackupCommand extends Command
    {
       $disk = $this->option('from-disk') ?? 'local';
       $database = $this->option('to-database') ?? config('database.default');
-      $directory = $this->option('dir');
       $password = $this->option('password');
+
+      // Resolve directory using PathGenerator if not explicitly provided
+      $directory = $this->option('dir')
+         ?? app(PathGenerator::class)->getDatabaseRemotePath($database);
 
       if ($this->option('latest')) {
          return $this->restoreLatest($disk, $database, $directory, $password);
@@ -33,9 +37,9 @@ class RestoreDatabaseBackupCommand extends Command
       return $this->restoreFromSelection($disk, $database, $directory, $password);
    }
 
-   private function restoreLatest(string $disk, string $database, ?string $dir, ?string $password): int
+   private function restoreLatest(string $disk, string $database, string $dir, ?string $password): int
    {
-      if (!$this->confirm("Are you sure you want to restore the LATEST backup from disk '{$disk}' to database '{$database}'? This will wipe the database.")) {
+      if (!$this->confirm("Are you sure you want to restore the LATEST backup from disk '{$disk}' (Dir: {$dir}) to database '{$database}'? This will wipe the database.")) {
          return self::SUCCESS;
       }
 
@@ -44,11 +48,8 @@ class RestoreDatabaseBackupCommand extends Command
       $restorer = Restorer::database()
          ->fromDisk($disk)
          ->toDatabase($database)
+         ->fromDir($dir)
          ->latest();
-
-      if ($dir) {
-         $restorer->fromDir($dir);
-      }
 
       if ($password) {
          $restorer->withPassword($password);
@@ -59,13 +60,14 @@ class RestoreDatabaseBackupCommand extends Command
       return self::SUCCESS;
    }
 
-   private function restoreFromSelection(string $disk, string $database, ?string $dir, ?string $password): int
+   private function restoreFromSelection(string $disk, string $database, string $dir, ?string $password): int
    {
-      $this->info("Fetching recent backups from disk '{$disk}'...");
+      $this->info("Fetching recent backups from disk '{$disk}' in directory '{$dir}'...");
+
       $backups = Restorer::getRecentBackups($disk, $dir);
 
       if ($backups->isEmpty()) {
-         $this->warn("No backups found on disk '{$disk}'.");
+         $this->warn("No backups found on disk '{$disk}' in directory '{$dir}'.");
          return self::SUCCESS;
       }
 
@@ -81,11 +83,8 @@ class RestoreDatabaseBackupCommand extends Command
          $restorer = Restorer::database()
             ->fromDisk($disk)
             ->fromPath($selectedPath)
+            ->fromDir($dir)
             ->toDatabase($database);
-
-         if ($dir) {
-            $restorer->fromDir($dir);
-         }
 
          if ($password) {
             $restorer->withPassword($password);

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Aaix\LaravelEasyBackups;
 
+use Aaix\LaravelEasyBackups\Services\PathGenerator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -22,7 +23,9 @@ final class Restorer
    private ?string $saveCopyDisk = null;
 
    // Private constructor to enforce static entry points
-   public function __construct() {}
+   public function __construct()
+   {
+   }
 
    /**
     * Start a restore process for a database.
@@ -98,10 +101,14 @@ final class Restorer
          throw new \InvalidArgumentException('A target database connection must be defined using toDatabase().');
       }
 
+      // Resolve default directory using PathGenerator if not manually overridden
+      $sourceDirectory = $this->directory
+         ?? app(PathGenerator::class)->getDatabaseRemotePath($this->databaseConnection);
+
       $job = new RestoreJob(
          sourceDisk: $this->disk,
          sourcePath: $this->path,
-         sourceDirectory: $this->directory ?? config('easy-backups.defaults.database.remote_storage_path'),
+         sourceDirectory: $sourceDirectory,
          databaseConnection: $this->databaseConnection,
          password: $this->password,
          shouldWipe: $this->shouldWipe,
@@ -121,12 +128,11 @@ final class Restorer
       return $dispatch;
    }
 
-   public static function getRecentBackups(string $disk, ?string $directory = null, int $count = 30): Collection
+   public static function getRecentBackups(string $disk, string $directory, int $count = 30): Collection
    {
       $storageDisk = Storage::disk($disk);
-      $searchPath = $directory ?? config('easy-backups.defaults.database.remote_storage_path');
 
-      return collect($storageDisk->files($searchPath))
+      return collect($storageDisk->files($directory))
          ->filter(fn(string $file) => Str::endsWith($file, ['.zip', '.sql', '.tar', '.gz', '.zst']))
          ->mapWithKeys(fn(string $file) => [$file => $storageDisk->lastModified($file)])
          ->sortDesc()

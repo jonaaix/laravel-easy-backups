@@ -7,6 +7,7 @@ namespace Aaix\LaravelEasyBackups;
 use Aaix\LaravelEasyBackups\Contracts\ProcessExecutor;
 use Aaix\LaravelEasyBackups\Events\RestoreFailed;
 use Aaix\LaravelEasyBackups\Events\RestoreSucceeded;
+use Aaix\LaravelEasyBackups\Services\PathGenerator;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -33,8 +34,8 @@ class RestoreJob implements ShouldQueue
       private readonly bool $useLatest = false,
       private readonly ?string $saveCopyDisk = null,
    ) {
-      $configTempPath = config('easy-backups.defaults.temp_path', 'easy-backups/tmp');
-      $this->tempDirectory = storage_path("app/{$configTempPath}/" . Str::random(16));
+      // Refactored: Use centralized absolute path logic
+      $this->tempDirectory = app(PathGenerator::class)->getAbsoluteTempPath() . '/' . Str::random(16);
    }
 
    public function handle(): void
@@ -47,21 +48,25 @@ class RestoreJob implements ShouldQueue
          File::ensureDirectoryExists($this->tempDirectory);
          $localPath = $this->tempDirectory . DIRECTORY_SEPARATOR . basename($this->sourcePath);
 
-         // Download via Stream to save memory
+         // Download via Stream to save memory (RAM-safe for large files)
          Storage::disk($this->sourceDisk)->readStream($this->sourcePath)
             ? File::put($localPath, Storage::disk($this->sourceDisk)->readStream($this->sourcePath))
             : File::put($localPath, Storage::disk($this->sourceDisk)->get($this->sourcePath));
 
+         // Logic for saving a local copy if requested
          if ($this->saveCopyDisk) {
-            $directory = config('easy-backups.defaults.database.local_storage_path', '');
+            // Determine target directory via PathGenerator (Centralized Logic)
+            $directory = app(PathGenerator::class)->getDatabaseLocalPath();
+
             $targetPath = $directory
                ? rtrim($directory, '/') . '/' . basename($this->sourcePath)
                : basename($this->sourcePath);
 
-            // Upload via Stream to prevent OOM on large files
+            // Use 'rb' for binary safety and stream to prevent OOM
             Storage::disk($this->saveCopyDisk)->put($targetPath, fopen($localPath, 'rb'));
          }
 
+         // Detect format and extract
          $dumpPath = match (true) {
             Str::endsWith($localPath, '.zip') => $this->extractZip($localPath),
             Str::endsWith($localPath, ['.tar', '.gz', '.zst']) => $this->extractTar($localPath),
@@ -69,10 +74,12 @@ class RestoreJob implements ShouldQueue
             default => throw new \Exception('Unsupported backup format.'),
          };
 
+         // Wipe database if requested
          if ($this->shouldWipe) {
             WiperFactory::create($this->databaseConnection)->wipe();
          }
 
+         // Import the dump
          ImporterFactory::create($this->databaseConnection)->importFromFile($dumpPath);
 
          event(new RestoreSucceeded($this->sourceDisk, $this->sourcePath, $this->databaseConnection));
@@ -83,6 +90,7 @@ class RestoreJob implements ShouldQueue
          ));
          throw $e;
       } finally {
+         // Always cleanup temp directory
          if (File::isDirectory($this->tempDirectory)) {
             File::deleteDirectory($this->tempDirectory);
          }
@@ -92,13 +100,10 @@ class RestoreJob implements ShouldQueue
    private function extractTar(string $path): string
    {
       $flags = '-xf';
-      if (Str::endsWith($path, '.gz')) {
-         $flags = '-zxf';
-      }
-      if (Str::endsWith($path, '.zst')) {
-         $flags = '--zstd -xf';
-      }
+      if (Str::endsWith($path, '.gz')) $flags = '-zxf';
+      if (Str::endsWith($path, '.zst')) $flags = '--zstd -xf';
 
+      // Disable timeout for large archive extraction
       app(ProcessExecutor::class)->execute(
          command: sprintf('tar %s %s -C %s', $flags, escapeshellarg($path), escapeshellarg($this->tempDirectory)),
          cwd: $this->tempDirectory,
@@ -127,7 +132,7 @@ class RestoreJob implements ShouldQueue
 
    private function validateAndFindSql(): string
    {
-      // Search recursively
+      // Search recursively for the .sql file
       $files = File::allFiles($this->tempDirectory);
       $sqlFiles = array_filter($files, fn($file) => $file->getExtension() === 'sql');
 

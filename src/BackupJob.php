@@ -9,6 +9,7 @@ use Aaix\LaravelEasyBackups\Events\BackupSucceeded;
 use Aaix\LaravelEasyBackups\Notifications\BackupFailedNotification;
 use Aaix\LaravelEasyBackups\Notifications\BackupSucceededNotification;
 use Aaix\LaravelEasyBackups\Services\BackupProcessor;
+use Aaix\LaravelEasyBackups\Services\PathGenerator;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -52,8 +53,7 @@ class BackupJob implements ShouldQueue
          $this->workingDirectory = $tempDirectory;
          $this->isManagedTempDirectory = false;
       } else {
-         $configTempPath = config('easy-backups.defaults.temp_path', 'easy-backups/tmp');
-         $baseTempDir = storage_path("app/{$configTempPath}");
+         $baseTempDir = app(PathGenerator::class)->getAbsoluteTempPath();
 
          $this->workingDirectory = $baseTempDir . DIRECTORY_SEPARATOR . 'backup_' . date('Y-m-d_H-i-s');
          $this->isManagedTempDirectory = true;
@@ -161,7 +161,6 @@ class BackupJob implements ShouldQueue
          'keepLocal' => $this->keepLocal,
          'localDisk' => $this->getLocalDisk(),
          'localStorageDir' => $this->getLocalStorageDir(),
-         'localStorageRelativePath' => $this->getLocalStorageRelativePath(),
          'remoteStorageDir' => $this->getRemoteStorageDir(),
          'encryptionPassword' => $this->encryptionPassword,
          'notifyOnSuccess' => $this->notifyOnSuccess,
@@ -179,21 +178,29 @@ class BackupJob implements ShouldQueue
          return $this->localStorageDir;
       }
 
-      return Storage::disk($this->getLocalDisk())->path($this->getLocalStorageRelativePath());
-   }
+      // Logic split: Database vs Files path default
+      $pathGen = app(PathGenerator::class);
+      $relativePath = !empty($this->databasesToInclude)
+         ? $pathGen->getDatabaseLocalPath()
+         : $pathGen->getFilesLocalPath();
 
-   private function getLocalStorageRelativePath(): string
-   {
-      return config('easy-backups.defaults.database.local_storage_path', 'easy-backups/database');
+      return Storage::disk($this->getLocalDisk())->path($relativePath);
    }
 
    private function getLocalDisk(): string
    {
-      return config('easy-backups.defaults.database.local_disk', 'local');
+      // Fallback logic for disk selection
+      if (!empty($this->databasesToInclude)) {
+         return config('easy-backups.defaults.database.local_disk', 'local');
+      }
+      return config('easy-backups.defaults.files.local_disk', 'local');
    }
 
    private function getRemoteStorageDir(): string
    {
-      return $this->remoteStorageDir ?? config('easy-backups.defaults.database.remote_storage_path');
+      // Note: Remote Path calculation depends on the specific artifact (DB or File)
+      // and is handled dynamically in BackupProcessor via PathGenerator.
+      // This method returns the user-override if set.
+      return $this->remoteStorageDir ?? '';
    }
 }

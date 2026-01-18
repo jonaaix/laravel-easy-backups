@@ -37,5 +37,7 @@ class EasyBackupsServiceProvider extends ServiceProvider
       $this->app->bind('laravel-easy-restore', function () {
          return new Restorer();
       });
+
+      $this->app->singleton(\Aaix\LaravelEasyBackups\Services\PathGenerator::class);
    }
 }

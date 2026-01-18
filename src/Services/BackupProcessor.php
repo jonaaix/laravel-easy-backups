@@ -24,7 +24,8 @@ class BackupProcessor
       private readonly CreateArchive $createArchiveAction,
       private readonly UploadBackupAction $uploadBackupAction,
       private readonly CleanupBackupsAction $cleanupBackupsAction,
-      private readonly VerifyBackupAction $verifyBackupAction
+      private readonly VerifyBackupAction $verifyBackupAction,
+      private readonly PathGenerator $pathGenerator,
    ) {
    }
 
@@ -34,21 +35,34 @@ class BackupProcessor
       $workingDirectory = $job->getWorkingDirectory();
       File::ensureDirectoryExists($workingDirectory);
 
-      // 'LocalDevTest3' -> 'local_dev_test_3'
       $suffix = isset($config['filenameSuffix']) && $config['filenameSuffix'] !== ''
          ? '_' . Str::slug(Str::snake($config['filenameSuffix']))
          : '';
 
-      $artifactsInTemp = [];
-      $finalLocalPaths = [];
+      $artifacts = [];
 
+      // 1. Handle Databases
       if (!empty($config['databasesToInclude'])) {
-         $artifactsInTemp = $this->createDatabaseDumps($config['databasesToInclude'], $workingDirectory, $suffix);
-      } else {
-         $artifactsInTemp = $this->findFiles($config['filesToInclude']);
-      }
+         foreach ($config['databasesToInclude'] as $dbConnection) {
+            $dumper = DumperFactory::create($dbConnection);
+            $timestamp = date('Y-m-d_H-i-s');
+            $filename = "db-dump_{$dbConnection}_{$timestamp}{$suffix}.sql";
+            $dumpPath = $workingDirectory . DIRECTORY_SEPARATOR . $filename;
 
-      if ($config['shouldCompress']) {
+            $this->createDatabaseDumpAction->execute($dumper, $dumpPath);
+
+            $remoteDir = $config['remoteStorageDir'] ?: $this->pathGenerator->getDatabaseRemotePath($dbConnection);
+
+            $artifacts[] = [
+               'local_path' => $dumpPath,
+               'remote_dir' => $remoteDir,
+            ];
+         }
+      }
+      // 2. Handle Files
+      else {
+         $foundFiles = $this->findFiles($config['filesToInclude']);
+
          $timestamp = date('Y-m-d_H-i-s');
          $namePrefix = $job->getNamePrefix();
 
@@ -58,7 +72,7 @@ class BackupProcessor
 
          $format = $this->createArchiveAction->execute(
             $tempArchivePath,
-            $artifactsInTemp,
+            $foundFiles,
             $config['directoriesToInclude'],
             $config['encryptionPassword']
          );
@@ -72,72 +86,79 @@ class BackupProcessor
             $this->verifyBackup($correctPath);
          }
 
-         $artifactsInTemp = [$correctPath];
+         $remoteDir = $config['remoteStorageDir'] ?: $this->pathGenerator->getFilesRemotePath($namePrefix);
+
+         $artifacts[] = [
+            'local_path' => $correctPath,
+            'remote_dir' => $remoteDir,
+         ];
       }
 
-      $targetDir = $config['localStorageDir'];
-      File::ensureDirectoryExists($targetDir);
+      // 3. Post-Processing
+      $finalResults = [];
+      $targetLocalDir = $config['localStorageDir'];
+      File::ensureDirectoryExists($targetLocalDir);
 
-      foreach ($artifactsInTemp as $sourcePath) {
+      foreach ($artifacts as $artifact) {
+         $sourcePath = $artifact['local_path'];
          $filename = basename($sourcePath);
-         $finalPath = $targetDir . DIRECTORY_SEPARATOR . $filename;
+         $finalLocalPath = $targetLocalDir . DIRECTORY_SEPARATOR . $filename;
 
-         if ($sourcePath !== $finalPath) {
-            if (File::exists($finalPath)) {
-               File::delete($finalPath);
+         if ($sourcePath !== $finalLocalPath) {
+            if (File::exists($finalLocalPath)) {
+               File::delete($finalLocalPath);
             }
-            File::move($sourcePath, $finalPath);
+            File::move($sourcePath, $finalLocalPath);
          }
-         $finalLocalPaths[] = $finalPath;
+
+         $fileSize = File::exists($finalLocalPath) ? File::size($finalLocalPath) : 0;
+
+         if ($config['saveTo']) {
+            $this->uploadBackupAction->execute(
+               localPath: $finalLocalPath,
+               disk: $config['saveTo'],
+               remotePath: $artifact['remote_dir']
+            );
+
+            $this->cleanupBackupsAction->execute(
+               disk: $config['saveTo'],
+               path: $artifact['remote_dir'],
+               maxBackups: $config['maxRemoteBackups'],
+               maxDays: $config['maxRemoteDays']
+            );
+         }
+
+         $finalResults[] = $config['saveTo']
+            ? rtrim($artifact['remote_dir'], '/') . '/' . $filename
+            : $finalLocalPath;
       }
 
-      $totalSize = array_reduce($finalLocalPaths, fn($sum, $path) => $sum + (File::exists($path) ? File::size($path) : 0), 0);
-
-      if ($config['saveTo']) {
-         foreach ($finalLocalPaths as $localPath) {
-            $this->uploadBackupAction->execute($localPath, $config['saveTo'], $config['remoteStorageDir']);
-         }
-      }
-
-      $this->performCleanup($job, $finalLocalPaths);
-
-      $returnPaths = $finalLocalPaths;
+      // 4. Cleanup Local
       if ($config['saveTo'] && !$config['keepLocal']) {
-         $returnPaths = array_map(fn($path) =>
-            rtrim($config['remoteStorageDir'], '/') . '/' . basename($path),
-            $finalLocalPaths
-         );
-      }
-
-      return [
-         'paths' => $returnPaths,
-         'disk' => $config['saveTo'] ?? $config['localDisk'],
-         'size' => $totalSize,
-      ];
-   }
-
-   private function performCleanup(BackupJob $job, array $finalLocalPaths): void
-   {
-      $config = $job->getConfig();
-
-      if ($config['saveTo']) {
-         $this->cleanupBackupsAction->execute(
-            disk: $config['saveTo'],
-            path: $config['remoteStorageDir'],
-            maxBackups: $config['maxRemoteBackups'],
-            maxDays: $config['maxRemoteDays']
-         );
-
-         if (!$config['keepLocal']) {
-            File::delete($finalLocalPaths);
+         foreach ($artifacts as $artifact) {
+            $path = $targetLocalDir . DIRECTORY_SEPARATOR . basename($artifact['local_path']);
+            if (File::exists($path)) {
+               File::delete($path);
+            }
          }
-      }
-
-      if ($config['keepLocal'] || !$config['saveTo']) {
+      } else {
          $disk = $config['localDisk'];
          $driver = config("filesystems.disks.{$disk}.driver");
 
-         $cleanupPath = ($driver === 'local') ? $config['localStorageDir'] : $config['localStorageRelativePath'];
+         // If local path is relative (not 'local' driver), we use path generator logic via localStorageDir
+         // But CleanupAction needs the relative path for non-local drivers usually.
+         // For consistency with PathGenerator:
+
+         if ($driver === 'local') {
+            $cleanupPath = $config['localStorageDir'];
+         } else {
+            // Re-resolve relative path via generator if needed, but localStorageDir is absolute path from BackupJob.
+            // We rely on BackupJob having set the correct absolute path.
+            // If we need relative for S3-like local disks:
+            $cleanupPath = !empty($config['databasesToInclude'])
+               ? $this->pathGenerator->getDatabaseLocalPath()
+               : $this->pathGenerator->getFilesLocalPath();
+         }
 
          $this->cleanupBackupsAction->execute(
             $disk,
@@ -145,21 +166,12 @@ class BackupProcessor
             $config['maxLocalBackups']
          );
       }
-   }
 
-   private function createDatabaseDumps(array $databases, string $workingDirectory, string $suffix): array
-   {
-      $dumpPaths = [];
-      foreach ($databases as $dbName) {
-         $dumper = DumperFactory::create($dbName);
-         $timestamp = date('Y-m-d_H-i-s');
-
-         $dumpPath = $workingDirectory . DIRECTORY_SEPARATOR . "db-dump_{$dbName}_{$timestamp}{$suffix}.sql";
-
-         $this->createDatabaseDumpAction->execute($dumper, $dumpPath);
-         $dumpPaths[] = $dumpPath;
-      }
-      return $dumpPaths;
+      return [
+         'paths' => $finalResults,
+         'disk' => $config['saveTo'] ?? $config['localDisk'],
+         'size' => isset($fileSize) ? $fileSize : 0,
+      ];
    }
 
    private function findFiles(array $patterns): array
@@ -174,7 +186,6 @@ class BackupProcessor
    private function verifyBackup(string $archivePath): void
    {
       $verificationResult = $this->verifyBackupAction->execute($archivePath);
-
       if ($verificationResult !== 'ok') {
          event(new BackupInvalid($archivePath, 'local', $verificationResult));
          throw new Exception("Backup verification failed: {$verificationResult}");
