@@ -24,6 +24,11 @@ class PostgreSqlDumper extends DbDumper
    {
       File::ensureDirectoryExists(dirname($path));
       $command = $this->getDumpCommand($path);
-      $this->executor->execute($command, dirname($path), ['PGPASSWORD' => $this->config->password]);
+      $this->executor->execute(
+         command: $command,
+         cwd: dirname($path),
+         env: ['PGPASSWORD' => $this->config->password],
+         timeout: null
+      );
    }
 }

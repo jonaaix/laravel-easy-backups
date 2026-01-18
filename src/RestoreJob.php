@@ -92,12 +92,17 @@ class RestoreJob implements ShouldQueue
    private function extractTar(string $path): string
    {
       $flags = '-xf';
-      if (Str::endsWith($path, '.gz')) $flags = '-zxf';
-      if (Str::endsWith($path, '.zst')) $flags = '--zstd -xf';
+      if (Str::endsWith($path, '.gz')) {
+         $flags = '-zxf';
+      }
+      if (Str::endsWith($path, '.zst')) {
+         $flags = '--zstd -xf';
+      }
 
       app(ProcessExecutor::class)->execute(
-         sprintf('tar %s %s -C %s', $flags, escapeshellarg($path), escapeshellarg($this->tempDirectory)),
-         $this->tempDirectory
+         command: sprintf('tar %s %s -C %s', $flags, escapeshellarg($path), escapeshellarg($this->tempDirectory)),
+         cwd: $this->tempDirectory,
+         timeout: null
       );
 
       return $this->validateAndFindSql();
