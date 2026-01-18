@@ -52,8 +52,9 @@ class BackupProcessor
             $this->createDatabaseDumpAction->execute($dumper, $dumpPath);
 
             $finalPath = $dumpPath;
+            $shouldCreateArchive = $config['shouldCompress'] || $config['encryptionPassword'];
             
-            if ($config['shouldCompress'] || $config['encryptionPassword']) {
+            if ($shouldCreateArchive) {
                $initialExtension = $config['encryptionPassword'] ? 'zip' : 'tar';
                $archiveBasePath = $workingDirectory . DIRECTORY_SEPARATOR . "db-dump_{$dbConnection}_{$timestamp}{$suffix}";
                $tempArchivePath = "{$archiveBasePath}.{$initialExtension}";
@@ -74,7 +75,10 @@ class BackupProcessor
                   $this->verifyBackup($correctPath);
                }
 
-               File::delete($dumpPath);
+               try {
+                  File::delete($dumpPath);
+               } catch (\Exception $e) {
+               }
                $finalPath = $correctPath;
             }
 
