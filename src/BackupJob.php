@@ -52,7 +52,9 @@ class BackupJob implements ShouldQueue
          $this->workingDirectory = $tempDirectory;
          $this->isManagedTempDirectory = false;
       } else {
-         $baseTempDir = storage_path('app/easy-backups-temp');
+         $configTempPath = config('easy-backups.defaults.temp_path', 'easy-backups/tmp');
+         $baseTempDir = storage_path("app/{$configTempPath}");
+
          $this->workingDirectory = $baseTempDir . DIRECTORY_SEPARATOR . 'backup_' . date('Y-m-d_H-i-s');
          $this->isManagedTempDirectory = true;
       }

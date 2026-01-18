@@ -2,6 +2,9 @@
 
 return [
    'defaults' => [
+      // Defines the temporary directory for processing archives (relative to storage/app)
+      'temp_path' => 'easy-backups/tmp',
+
       'database' => [
          // The disk name where local backups are stored (defined in filesystems.php)
          'local_disk' => 'local',

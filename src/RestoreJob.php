@@ -33,7 +33,8 @@ class RestoreJob implements ShouldQueue
       private readonly bool $useLatest = false,
       private readonly ?string $saveCopyDisk = null,
    ) {
-      $this->tempDirectory = storage_path('app/easy-backups-temp/' . Str::random(16));
+      $configTempPath = config('easy-backups.defaults.temp_path', 'easy-backups/tmp');
+      $this->tempDirectory = storage_path("app/{$configTempPath}/" . Str::random(16));
    }
 
    public function handle(): void
@@ -46,11 +47,19 @@ class RestoreJob implements ShouldQueue
          File::ensureDirectoryExists($this->tempDirectory);
          $localPath = $this->tempDirectory . DIRECTORY_SEPARATOR . basename($this->sourcePath);
 
-         // Download
-         File::put($localPath, Storage::disk($this->sourceDisk)->get($this->sourcePath));
+         // Download via Stream to save memory
+         Storage::disk($this->sourceDisk)->readStream($this->sourcePath)
+            ? File::put($localPath, Storage::disk($this->sourceDisk)->readStream($this->sourcePath))
+            : File::put($localPath, Storage::disk($this->sourceDisk)->get($this->sourcePath));
 
          if ($this->saveCopyDisk) {
-            Storage::disk($this->saveCopyDisk)->put(basename($this->sourcePath), File::get($localPath));
+            $directory = config('easy-backups.defaults.database.local_storage_path', '');
+            $targetPath = $directory
+               ? rtrim($directory, '/') . '/' . basename($this->sourcePath)
+               : basename($this->sourcePath);
+
+            // Upload via Stream to prevent OOM on large files
+            Storage::disk($this->saveCopyDisk)->put($targetPath, fopen($localPath, 'r'));
          }
 
          $dumpPath = match (true) {
