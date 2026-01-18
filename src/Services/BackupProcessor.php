@@ -51,10 +51,37 @@ class BackupProcessor
 
             $this->createDatabaseDumpAction->execute($dumper, $dumpPath);
 
+            $finalPath = $dumpPath;
+            
+            if ($config['shouldCompress'] || $config['encryptionPassword']) {
+               $initialExtension = $config['encryptionPassword'] ? 'zip' : 'tar';
+               $archiveBasePath = $workingDirectory . DIRECTORY_SEPARATOR . "db-dump_{$dbConnection}_{$timestamp}{$suffix}";
+               $tempArchivePath = "{$archiveBasePath}.{$initialExtension}";
+
+               $format = $this->createArchiveAction->execute(
+                  $tempArchivePath,
+                  [$dumpPath],
+                  [],
+                  $config['encryptionPassword']
+               );
+
+               $correctPath = "{$archiveBasePath}." . $format->getExtension();
+               if ($tempArchivePath !== $correctPath) {
+                  File::move($tempArchivePath, $correctPath);
+               }
+
+               if ($format === CompressionFormatEnum::ZIP) {
+                  $this->verifyBackup($correctPath);
+               }
+
+               File::delete($dumpPath);
+               $finalPath = $correctPath;
+            }
+
             $remoteDir = $config['remoteStorageDir'] ?: $this->pathGenerator->getDatabaseRemotePath($dbConnection);
 
             $artifacts[] = [
-               'local_path' => $dumpPath,
+               'local_path' => $finalPath,
                'remote_dir' => $remoteDir,
             ];
          }
