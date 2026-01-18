@@ -89,7 +89,7 @@ The standard `easy-backups:db:restore` command implements advanced logic like:
 
 If you want to build your own specialized restore command, we recommend looking at the source code of our command as a blueprint.
 
-[View ./src/Commands/RestoreDatabaseBackupCommand.php](./src/Commands/RestoreDatabaseBackupCommand.php)
+[View src/Commands/RestoreDatabaseBackupCommand.php](https://github.com/jonaaix/laravel-easy-backups/blob/main/src/Commands/CreateDatabaseBackupCommand.php)
 
 <details>
 <summary>Under The Hood: The Restore Workflow</summary>
