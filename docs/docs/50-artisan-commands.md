@@ -11,7 +11,7 @@ The package includes two robust commands for managing database backups directly 
 Creates a new atomic database backup.
 
 ```bash
-php artisan easy-backups:db:create {--of-database=} {--to-disk=} {--compress} {--password=} {--name=} {--retention=} {--local}
+php artisan easy-backups:db:create {--of-database=} {--to-disk=} {--compress} {--password=} {--name=} {--max-remote-backups=} {--max-remote-days=} {--local}
 ```
 
 **Options**
@@ -23,7 +23,8 @@ php artisan easy-backups:db:create {--of-database=} {--to-disk=} {--compress} {-
 | `--compress` | Force compression into a `.zip` or `.tar.gz` archive. | If omitted, behavior depends on config. |
 | `--password` | Encrypt the backup with this password. Implies compression. | No encryption. |
 | `--name` | A custom suffix for the filename. |  |
-| `--retention` | Number of backups to keep on the remote disk. | No cleanup is performed. |
+| `--max-remote-backups` | Number of backups to keep on the remote disk. | No cleanup is performed. |
+| `--max-remote-days` | Delete backups older than N days on remote. | No cleanup is performed. |
 | `--local` | Store the backup **only** on the local disk. | Uploads to remote disk. |
 
 ### Usage Examples
@@ -43,7 +44,13 @@ php artisan easy-backups:db:create --local --name="pre-migration"
 **Backup with retention policy (keep last 10):**
 
 ```bash
-php artisan easy-backups:db:create --retention=10
+php artisan easy-backups:db:create --max-remote-backups=10
+```
+
+**Backup with age-based retention (keep 30 days):**
+
+```bash
+php artisan easy-backups:db:create --max-remote-days=30
 ```
 
 ---

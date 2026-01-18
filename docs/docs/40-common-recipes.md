@@ -15,7 +15,7 @@ To create a daily automated backup of your main database to a remote location (e
 ```php
 use Illuminate\Support\Facades\Schedule;
 
-Schedule::command('easy-backups:db:create --compress --to-disk=s3-backup --retention=7')
+Schedule::command('easy-backups:db:create --compress --to-disk=s3-backup --max-remote-backups=7')
     ->daily()
     ->at('02:00');
 ```
