@@ -4,60 +4,38 @@ sidebar_position: 40
 
 # Common Recipes
 
-This page provides ready-to-use solutions for common backup scenarios. You can adapt these "recipes" for your own needs, for example, in a custom Artisan command or a scheduled task.
+This page provides ready-to-use solutions for common backup scenarios.
 
 ## Daily Backup to S3 with Cleanup
 
-This is a very common requirement: a daily, automated backup of your main database to a remote location like Amazon S3, ensuring you only keep a limited number of recent backups.
+To create a daily automated backup of your main database to a remote location (e.g. S3) and keep only the 7 most recent backups, you can schedule the included Artisan command directly.
 
-**The Goal:** Create a daily backup of the `mysql` database, store it on S3, and keep only the 7 most recent backups.
-
-```php
-// app/Console/Commands/CreateDailyBackup.php
-
-use Aaix\LaravelEasyBackups\Facades\Backup;
-use Illuminate\Console\Command;
-
-class CreateDailyBackup extends Command
-{
-    protected $signature = 'app:create-daily-backup';
-
-    protected $description = 'Create a daily backup of the database and upload to S3.';
-
-    public function handle(): int
-    {
-        $this->info('Starting daily backup...');
-
-        Backup::database('mysql')
-            ->saveTo('s3')
-            ->compress()
-            ->maxRemoteBackups(7) // Keep the last 7 backups
-            ->run();
-
-        $this->info('Daily backup job dispatched successfully!');
-        
-        return self::SUCCESS;
-    }
-}
-```
-
-**To make this run daily, register the command in your `routes/console.php` (Laravel 11+):**
+**In `routes/console.php`:**
 
 ```php
-// routes/console.php
 use Illuminate\Support\Facades\Schedule;
 
-Schedule::command('app:create-daily-backup')->daily()->at('02:00');
+Schedule::command('easy-backups:db:create --compress --to-disk=s3-backup --retention=7')
+    ->daily()
+    ->at('02:00');
 ```
 
-## Backup User Uploads with the Database
+Alternatively, if you prefer a custom command class using the Facade:
 
-If your users upload files (like avatars or documents), you need to back up those files along with your database.
+```php
+Backup::database('mysql')
+    ->saveTo('s3-backup')
+    ->compress()
+    ->maxRemoteBackups(7)
+    ->run();
+```
 
-**The Goal:** Back up the default database and the entire `storage/app/public` directory.
+## Backup User Uploads
+
+If you need to back up user-uploaded files (e.g. `storage/app/public`) alongside your database, dispatch a separate job for the files.
 
 :::info Single Responsibility
-Since a backup job handles **either** a database **or** files, we dispatch two separate jobs here.
+A backup job handles **either** a database **or** files, not both simultaneously.
 :::
 
 ```php
@@ -65,8 +43,7 @@ use Aaix\LaravelEasyBackups\Facades\Backup;
 
 // 1. Backup the Database
 Backup::database(config('database.default'))
-    ->saveTo('s3')
-    ->setRemoteStorageDir('database-backups')
+    ->saveTo('s3-backup')
     ->compress()
     ->run();
 
@@ -75,60 +52,51 @@ Backup::files()
     ->includeDirectories([
         storage_path('app/public')
     ])
-    ->setRemoteStorageDir('file-backups')
-    ->saveTo('s3')
+    ->saveTo('s3-backup')
     ->run();
 ```
 
 ## Create Encrypted Backups
 
-If your backup contains sensitive data, you should always encrypt it.
+For sensitive data, creating an encrypted backup is recommended.
 
-**The Goal:** Create a password-protected, encrypted backup.
+**Creating the backup:**
 
 ```php
 use Aaix\LaravelEasyBackups\Facades\Backup;
 
 Backup::database('mysql')
-    ->encryptWithPassword(config('app.backup_password')) // Store password securely!
-    ->compress()
-    ->saveTo('s3')
-    ->setRemoteStorageDir('mysql-backups')
+    ->encryptWithPassword(config('app.backup_password'))
+    ->saveTo('s3-backup')
     ->run();
 ```
 
-**Important:** Store your backup password securely, for example, in your `.env` file and `config/app.php`. Never hard-code it.
+**Restoring the backup:**
 
-To restore it, you must provide the same password:
+To restore an encrypted backup, you must provide the password.
 
 ```php
 use Aaix\LaravelEasyBackups\Facades\Restorer;
 
 Restorer::database()
-    ->fromDisk('s3')
-    ->fromDir('mysql-backups')
+    ->fromDisk('s3-backup')
     ->toDatabase('mysql')
+    ->latest()
     ->withPassword(config('app.backup_password'))
     ->run();
 ```
 
-## Email Notifications for Failed Backups
+## Email Notifications
 
-Getting notified immediately when a backup fails is crucial. This recipe shows how to set up email notifications for failures.
-
-**The Goal:** Send an email to a specific address only when a backup process fails.
+To receive alerts when a backup process fails (or succeeds), configure the notification channels.
 
 ```php
 use Aaix\LaravelEasyBackups\Facades\Backup;
 
-// Assumes your application's mail driver is configured
-
 Backup::database('mysql')
-    ->saveTo('s3')
+    ->saveTo('s3-backup')
     ->compress()
-    ->notifyOnFailure('mail', 'monitoring@example.com') // The recipient's email address
-    ->notifyOnSuccess('mail', 'monitoring@example.com')
+    // Requires your mail driver to be configured
+    ->notifyOnFailure('mail', 'monitoring@example.com') 
     ->run();
 ```
-
-This uses Laravel's built-in notification system. As long as your application's mail driver is correctly configured (e.g., in your `.env` file and `config/mail.php`), it will work out-of-the-box.

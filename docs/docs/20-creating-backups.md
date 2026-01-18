@@ -31,27 +31,33 @@ A core feature of this package is the ability to automatically clean up old back
 use Aaix\LaravelEasyBackups\Facades\Backup;
 
 Backup::database('app_data')
-    ->saveTo('s3')
+    ->saveTo('s3-backup') // Matches the 'remote_disk' config default
     ->compress()
     ->encryptWithPassword('secret')
     ->maxRemoteBackups(7) // Keep the last 7 backups on S3
     ->maxLocalBackups(3)  // Keep the last 3 backups locally
     ->run();
 
-// Or:
+// Or simply using age-based retention:
 
 Backup::database('app_data')
-    ->saveTo('s3')
-    ->maxRemoteDays(40)
+    ->saveTo('s3-backup')
+    ->maxRemoteDays(40) // Deletes backups older than 40 days
     ->run();
 ```
 
-* `->saveTo('s3')`: This method instructs the package to store the backup on the `s3` disk. Make sure your `s3` disk is correctly configured in `config/filesystems.php`.
+* `->saveTo('s3-backup')`: This method instructs the package to store the backup on the specified disk. Make sure this disk is defined in `config/filesystems.php`.
 * `->compress()`: This method instructs the package to compress the backup archive before storing it.
-* `->encryptWithPassword('secret')`: This method instructs the package to encrypt the backup archive with the specified password.
-* `->maxRemoteBackups(7)`: After a successful backup to a remote disk (like `s3`), this will delete the oldest backups, ensuring only the 7 most recent ones are kept.
+* `->encryptWithPassword('secret')`: This method instructs the package to encrypt the backup archive.
+* `->maxRemoteBackups(7)`: After a successful backup to a remote disk, this will delete the oldest backups, ensuring only the 7 most recent ones are kept.
 * `->maxLocalBackups(3)`: Similarly, this manages the number of backups on your local filesystem.
-* `->maxRemoteDays(40)`: This method instructs the package to delete backups older than 40 days from the remote disk (like `s3`).
+* `->maxRemoteDays(40)`: This method instructs the package to delete backups older than 40 days from the remote disk.
+
+:::tip Automatic Path Generation
+You don't need to specify folder paths manually. The package uses a smart `PathGenerator` to automatically organize your backups:
+`{environment}/{type}/{driver}/{filename}`.
+For example: `production/db-backups/mysql/db-dump_...sql`.
+:::
 
 ## Backing up Files and Directories
 
@@ -71,7 +77,7 @@ use Aaix\LaravelEasyBackups\Facades\Backup;
 Backup::files()
     ->includeDirectories([storage_path('app/public')])
     ->includeFiles([base_path('.env')])
-    ->saveTo('s3')
+    ->saveTo('s3-backup')
     ->run();
 ```
 
@@ -86,7 +92,7 @@ use Aaix\LaravelEasyBackups\Facades\Backup;
 Backup::files()
     ->includeStorage() // defaults to storage_path('app')
     ->includeEnv()     // defaults to base_path('.env')
-    ->saveTo('s3')
+    ->saveTo('s3-backup')
     ->run();
 ```
 
@@ -98,8 +104,8 @@ Let's imagine a complex scenario where you want to back up your main PostgreSQL 
 use Aaix\LaravelEasyBackups\Facades\Backup;
 
 Backup::database('pgsql')
-    // 1. Store the final archive on the 's3' disk
-    ->saveTo('s3')
+    // 1. Store the final archive on the 's3-backup' disk
+    ->saveTo('s3-backup')
 
     // 2. Ensure the backup is compressed and encrypted
     ->encryptWithPassword(config('app.backup_password'))
@@ -113,13 +119,12 @@ Backup::database('pgsql')
 
     // 5. Execute the backup process
     ->run();
-
 ```
 
 ### Contextual Explanation
 
 * `Backup::database('pgsql')`: We initiate a backup specifically for the `pgsql` connection defined in `config/database.php`.
-* `->saveTo('s3')`: This method is key for off-site backups. It instructs the package to use one of your configured filesystem disks.
+* `->saveTo('s3-backup')`: This method is key for off-site backups.
 * `->encryptWithPassword(...)`: Secures your data at rest using Zip encryption.
 * `->onConnection('redis')`: It instructs the package to use a specific queue connection.
 * `->onQueue('backups')`: For long-running backups, it's wise to use a dedicated queue to avoid interfering with other application tasks.
@@ -129,7 +134,7 @@ Backup::database('pgsql')
 
 When you call `run()`, a `BackupJob` is dispatched. Here’s a summary of what happens inside that job:
 
-1. **Temporary Directory**: A unique, temporary working directory is created on the local filesystem.
+1. **Temporary Directory**: A unique, temporary working directory is created (configured via `temp_path`).
 2. **Artifact Generation**:
 * If initialized with `database()`, a driver-specific `Dumper` creates a `.sql` dump.
 * If initialized with `files()`, the specified files are gathered.
@@ -137,8 +142,8 @@ When you call `run()`, a `BackupJob` is dispatched. Here’s a summary of what h
 
 3. **Creating the Archive**: The artifacts are added to a single archive (ZIP or TAR). If you used `encryptWithPassword()`, the archive is encrypted.
 4. **Verification**: The package performs a quick integrity check on the archive to ensure it's not corrupted or empty.
-5. **Storage**: The verified archive is moved to its final local destination or uploaded to the specified remote disk (like S3).
-6. **Cleanup**: The job cleans up old backups based on your retention policy (e.g., `maxRemoteBackups()`). If the backup was uploaded and `keepLocal()` was not used, the local copy is deleted.
+5. **Storage**: The verified archive is moved to its final local destination. If a remote disk is configured, it is uploaded using **memory-safe streaming** (ideal for large files).
+6. **Cleanup**: The job cleans up old backups based on your retention policy (e.g., `maxRemoteBackups()`). If `keepLocal()` was not used, the local copy is deleted after upload.
 7. **Notifications & Events**: Finally, the job dispatches events (`BackupSucceeded`, `BackupFailed`) and sends notifications if configured.
 
 </details>

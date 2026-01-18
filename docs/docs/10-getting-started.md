@@ -14,7 +14,8 @@ First, install the package via Composer:
 composer require aaix/laravel-easy-backups
 ```
 
-The package's service provider will be automatically registered. Next, you should publish the configuration file. While the default settings work out-of-the-box for most applications, publishing the config allows you to customize paths and defaults later.
+The package's service provider will be automatically registered. Next, you can optionally publish the configuration file if you
+want to customize paths and defaults. The default settings work out-of-the-box for most applications.
 
 ```bash
 php artisan vendor:publish --provider="Aaix\LaravelEasyBackups\EasyBackupsServiceProvider" --tag="config"
@@ -22,17 +23,39 @@ php artisan vendor:publish --provider="Aaix\LaravelEasyBackups\EasyBackupsServic
 
 This will create a `config/easy-backups.php` file in your project.
 
-## Setting up your backup command
+## Quickstart: Creating a Database Backup
 
-This package is designed to be used within a customized, application-specific backup command to give you full control. So we start by creating a new command:
+For standard database backups, you don't need to write any code. The package comes with a ready-to-use Artisan command.
+
+To create a backup of your default database and store it locally:
 
 ```bash
-php artisan make:command Backup\\DatabaseBackupCommand
+php artisan easy-backups:db:create
 ```
 
-This will create a new command in `app/Console/Commands/Backup/DatabaseBackupCommand.php`.
+To create a compressed backup and upload it to your configured remote disk (default: `s3-backup`):
 
-Next, we use the package to set up the backup configuration.
+```bash
+php artisan easy-backups:db:create --compress --to-disk=s3-backup
+```
+
+You can verify the created backup using the restore command:
+
+```bash
+php artisan easy-backups:db:restore
+```
+
+## Advanced: Create your own backup command
+
+While the included commands are great for quick tasks, you might want to create a custom command to handle complex retention policies, notifications, or specific file inclusions.
+
+Start by creating a new command:
+
+```bash
+php artisan make:command Backup\\DailyBackupCommand
+```
+
+Then, use the fluent API to define your backup logic:
 
 ```php
 <?php
@@ -42,34 +65,25 @@ namespace App\Console\Commands\Backup;
 use Illuminate\Console\Command;
 use Aaix\LaravelEasyBackups\Facades\Backup;
 
-class DatabaseBackupCommand extends Command
+class DailyBackupCommand extends Command
 {
-    protected $signature = 'backup:db:create';
-
-    protected $description = 'Create a database backup';
+    protected $signature = 'app:backup:daily';
+    protected $description = 'Create a daily backup';
 
     public function handle(): int
     {
-        $this->info('Creating database backup...');
+        $this->info('Starting backup...');
 
-        // We use the 'database' static method to start a DB backup context
-        Backup::database(config('database.default'))
-             ->saveTo('local')
+        Backup::database('mysql')
+             ->saveTo('s3-backup')
              ->compress()
              ->run();
 
-        $this->info('Database backup created successfully.');
+        $this->info('Backup created successfully.');
 
         return self::SUCCESS;
     }
 }
 ```
 
-### Let's break down what's happening here:
-
-* `Backup::database(...)`: This initiates a new backup process specifically for the given database connection.
-* `->saveTo('local')`: This specifies that the backup archive should be saved using the `local` disk driver, which usually corresponds to your application's `storage/app` directory.
-* `->compress()`: This tells the package to create a compressed `.zip` (or `.tar.gz`) archive of the database dump.
-* `->run()`: This starts the backup process.
-
-That's it! You've just created your first backup. Now, let's dive deeper into creating and customizing your backups.
+This is just the beginning. For more details on customization, handling files, and retention policies, check out the [Creating Backups](https://www.google.com/search?q=./creating-backups) guide.

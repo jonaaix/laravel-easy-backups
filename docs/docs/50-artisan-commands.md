@@ -4,97 +4,91 @@ sidebar_position: 50
 
 # Included Artisan Commands
 
-The package includes a set of basic quickstart Artisan commands.
+The package includes two robust commands for managing database backups directly from the CLI.
 
-## `aaix:backup:db:create`
+## `easy-backups:db:create`
 
-Creates a simple database backup. This command is intended for manual triggers or as a basic template for creating your own, more advanced backup commands.
+Creates a new atomic database backup.
 
 ```bash
-php artisan aaix:backup:db:create {--of-database=} {--to-disk=} {--compress} {--password=}
+php artisan easy-backups:db:create {--of-database=} {--to-disk=} {--compress} {--password=} {--name=} {--retention=} {--local}
 ```
 
 **Options**
 
 | Option | Description | Default Behavior |
 | --- | --- | --- |
-| `--of-database` | The database connection name to back up. | Defaults to your application's default database connection. |
-| `--to-disk` | The filesystem disk to store the backup on. | Defaults to `'local'`. |
-| `--compress` | A flag to compress the final backup into a `.zip` archive. | If omitted, an uncompressed `.sql` file is stored. |
-| `--password` | The password to encrypt the backup archive. Using this option implicitly enables compression. | The backup is not encrypted. |
+| `--of-database` | The database connection name to back up. | Defaults to your application's default connection. |
+| `--to-disk` | The filesystem disk to store the backup on. | Defaults to `s3-backup` (or configured remote disk). |
+| `--compress` | Force compression into a `.zip` or `.tar.gz` archive. | If omitted, behavior depends on config. |
+| `--password` | Encrypt the backup with this password. Implies compression. | No encryption. |
+| `--name` | A custom suffix for the filename. |  |
+| `--retention` | Number of backups to keep on the remote disk. | No cleanup is performed. |
+| `--local` | Store the backup **only** on the local disk. | Uploads to remote disk. |
 
 ### Usage Examples
 
-**Create a simple backup of the default database:**
+**Standard backup to S3:**
 
 ```bash
-# Creates an uncompressed backup of the default DB on the 'local' disk
-php artisan aaix:backup:db:create
+php artisan easy-backups:db:create --compress
 ```
 
-**Create a compressed backup of a specific database on S3:**
+**Local-only snapshot with a name:**
 
 ```bash
-# Creates a compressed backup of the 'pgsql' database on the 's3' disk
-php artisan aaix:backup:db:create --of-database=pgsql --to-disk=s3 --compress
+php artisan easy-backups:db:create --local --name="pre-migration"
 ```
 
-**Create an encrypted backup of the default database:**
+**Backup with retention policy (keep last 10):**
 
 ```bash
-# Creates a compressed, encrypted backup on the 'local' disk
-php artisan aaix:backup:db:create --password="your-secret-password"
+php artisan easy-backups:db:create --retention=10
 ```
 
 ---
 
-## `aaix:backup:db:restore`
+## `easy-backups:db:restore`
 
-Restores a database from a backup. This command is a powerful tool for development and can be run in two modes:
-
-1. **Interactive Mode (Default):** If run without the `--latest` flag, it will present an interactive prompt allowing you to select a backup from a list of the 30 most recent files on the specified disk.
-2. **Automated Mode:** When the `--latest` flag is used, it will automatically find and restore the most recent backup, which is ideal for scripting.
+Restores a database from a backup. Runs in interactive mode by default.
 
 ```bash
-php artisan aaix:backup:db:restore {--latest} {--from-disk=} {--to-database=} {--dir=} {--password=}
+php artisan easy-backups:db:restore {--latest} {--from-disk=} {--to-database=} {--source-env=} {--password=} {--local}
 ```
 
 **Options**
 
 | Option | Description | Default Behavior |
 | --- | --- | --- |
-| `--from-disk` | The filesystem disk where the backup is stored (e.g., `s3`). | Defaults to `'local'`. |
-| `--to-database` | The database connection to restore to (as defined in `config/database.php`). | Defaults to your application's default database connection. |
-| `--dir` | A specific directory on the disk to search for backups. | Defaults to the path configured in `easy-backups.php`. |
-| `--latest` | A flag to restore the latest available backup without prompting the user. | If omitted, the command runs in interactive mode. |
-| `--password` | The password to decrypt an encrypted backup archive. | Only required for encrypted backups. |
+| `--from-disk` | The filesystem disk where the backup is stored. | Defaults to `s3-backup`. |
+| `--to-database` | The target database connection to overwrite. | Defaults to default connection. |
+| `--source-env` | The environment to pull backups from (e.g., `production`). | Defaults to current environment. |
+| `--latest` | Restore the latest backup immediately without prompting. | Runs interactive selection. |
+| `--password` | Password for encrypted backups. |  |
+| `--local` | Force using the local disk as source. | Uses remote disk. |
 
 ### Usage Examples
 
-**Interactive restore from the local disk:**
+**Interactive restore:**
 
 ```bash
-# Starts an interactive prompt to select a backup from the 'local' disk
-php artisan aaix:backup:db:restore
+php artisan easy-backups:db:restore
 ```
 
-**Automated restore of the latest backup from S3:**
+**Restore latest backup (Automated):**
 
 ```bash
-# Automatically finds and restores the latest backup from the 's3' disk
-php artisan aaix:backup:db:restore --latest --from-disk=s3
+php artisan easy-backups:db:restore --latest
 ```
 
-**Restore the latest backup from a specific subdirectory on S3:**
+**Restore a backup from Production environment:**
 
 ```bash
-# Looks inside the 'mysql-daily' folder on S3 for the newest file
-php artisan aaix:backup:db:restore --latest --from-disk=s3 --dir=mysql-daily
+php artisan easy-backups:db:restore --source-env=production
 ```
 
-**Interactive restore of an encrypted backup to a specific database:**
+**Restore from local storage:**
 
 ```bash
-# Interactively select an encrypted backup from 's3' and restore it to the 'testing_db' connection
-php artisan aaix:backup:db:restore --from-disk=s3 --to-database=testing_db --password="your-secret-password"
+php artisan easy-backups:db:restore --local
 ```
