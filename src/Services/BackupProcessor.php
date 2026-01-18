@@ -51,14 +51,39 @@ class BackupProcessor
 
             $this->createDatabaseDumpAction->execute($dumper, $dumpPath);
 
-            $remoteDir = $config['remoteStorageDir'] ?: $this->pathGenerator->getDatabaseRemotePath($dbConnection);
+            if ($config['shouldCompress'] || $config['encryptionPassword']) {
+               $initialExtension = $config['encryptionPassword'] ? 'zip' : 'tar';
+               $tempArchivePath = $dumpPath . '.' . $initialExtension;
 
+               $format = $this->createArchiveAction->execute(
+                  archivePath: $tempArchivePath,
+                  files: [$dumpPath],
+                  directories: [],
+                  password: $config['encryptionPassword']
+               );
+
+               $finalArchivePath = $dumpPath . '.' . $format->getExtension();
+
+               if ($tempArchivePath !== $finalArchivePath) {
+                  File::move($tempArchivePath, $finalArchivePath);
+               }
+
+               if ($format === CompressionFormatEnum::ZIP) {
+                  $this->verifyBackup($finalArchivePath);
+               }
+
+               File::delete($dumpPath);
+               $dumpPath = $finalArchivePath;
+            }
+
+            $remoteDir = $config['remoteStorageDir'] ?: $this->pathGenerator->getDatabaseRemotePath($dbConnection);
             $artifacts[] = [
                'local_path' => $dumpPath,
                'remote_dir' => $remoteDir,
             ];
          }
       }
+
       // 2. Handle Files
       else {
          $foundFiles = $this->findFiles($config['filesToInclude']);
