@@ -8,91 +8,90 @@ use Aaix\LaravelEasyBackups\Facades\Restorer;
 use Aaix\LaravelEasyBackups\Services\PathGenerator;
 use Illuminate\Console\Command;
 use function Laravel\Prompts\select;
+use function Laravel\Prompts\confirm;
 
 class RestoreDatabaseBackupCommand extends Command
 {
-   protected $signature = 'aaix:backup:db:restore
-                            {--from-disk= : The disk to restore from (defaults to "local")}
-                            {--to-database= : The database connection to restore to (defaults to default connection)}
-                            {--dir= : Optional directory on disk to look for backups}
+   protected $signature = 'easy-backups:db:restore
+                            {--from-disk= : The disk to restore from}
+                            {--to-database= : The database connection to restore to}
+                            {--source-env= : The source environment to pull from (e.g. production)}
                             {--latest : Restore the latest backup without prompting}
-                            {--password= : The password for an encrypted backup}';
+                            {--password= : The password for an encrypted backup}
+                            {--local : Force use local disk}';
 
-   protected $description = 'Restores a database backup from a local or remote disk.';
+   protected $description = 'Restores a database backup from a local or remote disk with interactive selection.';
 
    public function handle(): int
    {
-      $disk = $this->option('from-disk') ?? 'local';
-      $database = $this->option('to-database') ?? config('database.default');
-      $password = $this->option('password');
+      $connection = $this->option('to-database') ?? config('database.default');
+      $useLocal = $this->option('local');
 
-      // Resolve directory using PathGenerator if not explicitly provided
-      $directory = $this->option('dir')
-         ?? app(PathGenerator::class)->getDatabaseRemotePath($database);
+      $localDisk = config('easy-backups.defaults.database.local_disk', 'local');
+      $defaultRemoteDisk = config('easy-backups.defaults.database.remote_disk', 's3-backup');
 
-      if ($this->option('latest')) {
-         return $this->restoreLatest($disk, $database, $directory, $password);
+      $remoteDisk = $this->option('from-disk') ?? $defaultRemoteDisk;
+      $sourceDisk = $useLocal ? $localDisk : $remoteDisk;
+
+      $sourceEnv = $this->option('source-env') ?: ($useLocal ? config('app.env') : 'production');
+
+      if ($useLocal) {
+         $searchDir = config('easy-backups.defaults.database.local_path');
+      } else {
+         $searchDir = app(PathGenerator::class)->getDatabaseRemotePath($connection, $sourceEnv);
       }
 
-      return $this->restoreFromSelection($disk, $database, $directory, $password);
-   }
+      $this->info("Fetching available backups from disk: '{$sourceDisk}' (Dir: '{$searchDir}')...");
 
-   private function restoreLatest(string $disk, string $database, string $dir, ?string $password): int
-   {
-      if (!$this->confirm("Are you sure you want to restore the LATEST backup from disk '{$disk}' (Dir: {$dir}) to database '{$database}'? This will wipe the database.")) {
-         return self::SUCCESS;
-      }
-
-      $this->info("Starting restore of the LATEST backup...");
-
-      $restorer = Restorer::database()
-         ->fromDisk($disk)
-         ->toDatabase($database)
-         ->fromDir($dir)
-         ->latest();
-
-      if ($password) {
-         $restorer->withPassword($password);
-      }
-
-      $restorer->run();
-      $this->info('Restore job dispatched.');
-      return self::SUCCESS;
-   }
-
-   private function restoreFromSelection(string $disk, string $database, string $dir, ?string $password): int
-   {
-      $this->info("Fetching recent backups from disk '{$disk}' in directory '{$dir}'...");
-
-      $backups = Restorer::getRecentBackups($disk, $dir);
+      $backups = Restorer::getRecentBackups($sourceDisk, $searchDir);
 
       if ($backups->isEmpty()) {
-         $this->warn("No backups found on disk '{$disk}' in directory '{$dir}'.");
+         $this->warn("No backups found on disk '{$sourceDisk}' in directory '{$searchDir}'.");
+         return self::FAILURE;
+      }
+
+      if ($this->option('latest')) {
+         $selectedPath = $backups->first()['path'];
+         $this->info("Selected latest backup: " . basename($selectedPath));
+      } else {
+         $selectedPath = select(
+            label: 'Which backup would you like to restore?',
+            options: $backups->pluck('label', 'path')->all(),
+            scroll: 10,
+            required: true,
+         );
+      }
+
+      $filename = basename($selectedPath);
+
+      if (!confirm(
+         label: "DANGER: This will WIPE the database '{$connection}' and restore '{$filename}'. Continue?",
+         default: false
+      )) {
          return self::SUCCESS;
       }
 
-      $selectedPath = select(
-         label: 'Which backup would you like to restore?',
-         options: $backups->pluck('label', 'path')->all(),
-         scroll: 10,
-         required: true
-      );
+      $restorer = Restorer::database()
+         ->fromDisk($sourceDisk)
+         ->fromPath($selectedPath)
+         ->fromDir($searchDir)
+         ->toDatabase($connection);
 
-      if ($this->confirm("Are you sure you want to restore '" . basename($selectedPath) . "' to database '{$database}'? This will wipe the database.")) {
-
-         $restorer = Restorer::database()
-            ->fromDisk($disk)
-            ->fromPath($selectedPath)
-            ->fromDir($dir)
-            ->toDatabase($database);
-
-         if ($password) {
-            $restorer->withPassword($password);
-         }
-
-         $restorer->run();
-         $this->info('Restore job dispatched.');
+      if ($this->option('password')) {
+         $restorer->withPassword($this->option('password'));
       }
+
+      if (!$useLocal && $sourceDisk !== $localDisk) {
+         if (confirm("Do you want to save a copy to '{$localDisk}' for faster future restores?")) {
+            $restorer->saveCopyTo($localDisk);
+         }
+      }
+
+      $this->info('Starting restore process...');
+
+      $restorer->run();
+
+      $this->info('Restore completed successfully.');
 
       return self::SUCCESS;
    }

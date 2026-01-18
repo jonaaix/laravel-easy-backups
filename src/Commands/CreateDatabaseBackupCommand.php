@@ -9,25 +9,40 @@ use Illuminate\Console\Command;
 
 class CreateDatabaseBackupCommand extends Command
 {
-   protected $signature = 'aaix:backup:db:create
-                            {--of-database= : The database connection name to back up (defaults to default connection)}
-                            {--to-disk= : The disk to store the backup on (defaults to "local")}
-                            {--compress : Force compression (smart detection)}
-                            {--password= : The password for encrypted backup (implies zip)}';
+   protected $signature = 'easy-backups:db:create
+                            {--of-database= : The database connection name to back up}
+                            {--to-disk= : The disk to store the backup on (defaults to config)}
+                            {--compress : Force compression}
+                            {--password= : The password for encrypted backup}
+                            {--name= : Optional suffix for the backup filename}
+                            {--retention= : Keep only the last N backups on remote}
+                            {--local : Store backup only locally (overrides to-disk)}';
 
-   protected $description = 'Creates a new atomic database backup.';
+   protected $description = 'Creates a new atomic database backup with optional remote upload and retention.';
 
    public function handle(): int
    {
+      $this->info('Initializing backup process...');
+
       $database = $this->option('of-database') ?? config('database.default');
-      $disk = $this->option('to-disk') ?? 'local';
+      $isLocalOnly = $this->option('local');
+
+      $defaultRemoteDisk = config('easy-backups.defaults.database.remote_disk', 's3-backup');
+      $disk = $isLocalOnly ? 'local' : ($this->option('to-disk') ?? $defaultRemoteDisk);
+
+      $name = $this->option('name');
       $password = $this->option('password');
       $compress = $this->option('compress') || $password;
+      $retention = $this->option('retention') ? (int) $this->option('retention') : null;
 
-      $this->info("Starting backup of database '{$database}' to disk '{$disk}'...");
+      $backup = Backup::database($database)->saveTo($disk);
 
-      $backup = Backup::database($database)
-         ->saveTo($disk);
+      if ($isLocalOnly) {
+         $this->info('Mode: Local only.');
+         $backup->keepLocal();
+      } else {
+         $this->info("Mode: Remote upload to disk '{$disk}'.");
+      }
 
       if ($compress) {
          $backup->compress();
@@ -37,10 +52,42 @@ class CreateDatabaseBackupCommand extends Command
          $backup->encryptWithPassword($password);
       }
 
-      $backup->run();
+      if ($name) {
+         $backup->setName($name);
+      }
 
-      $this->info('Backup job dispatched successfully.');
+      if ($retention && !$isLocalOnly) {
+         $this->comment("Retention policy: Keeping last {$retention} backups.");
+         $backup->maxRemoteBackups($retention);
+      }
+
+      $result = $backup->run();
+
+      if (is_array($result)) {
+         $this->displaySummary($result);
+      } else {
+         $this->info('Backup job has been dispatched to the queue.');
+      }
 
       return self::SUCCESS;
+   }
+
+   private function displaySummary(array $result): void
+   {
+      $this->newLine();
+      $this->info('--------------------------------------');
+      $this->info(' BACKUP COMPLETED SUCCESSFULLY');
+      $this->info('--------------------------------------');
+
+      $sizeMb = number_format($result['size'] / 1024 / 1024, 2);
+      $this->line(" Size: <comment>{$sizeMb} MB</comment>");
+      $this->line(" Disk: <comment>{$result['disk']}</comment>");
+
+      $this->newLine();
+      $this->info(' Created Artifacts:');
+      foreach ($result['paths'] as $path) {
+         $this->line(' - ' . $path);
+      }
+      $this->newLine();
    }
 }

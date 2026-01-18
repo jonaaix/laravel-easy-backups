@@ -25,20 +25,20 @@ final class PathGenerator
       return config('easy-backups.defaults.files.local_path', 'easy-backups/files');
    }
 
-   public function getDatabaseRemotePath(string $connectionName): string
+   public function getDatabaseRemotePath(string $connectionName, ?string $env = null): string
    {
       $base = config('easy-backups.defaults.database.remote_path', 'db-backups');
       $driver = config("database.connections.{$connectionName}.driver", 'unknown');
 
-      return $this->buildRemotePath($base, $driver);
+      return $this->buildRemotePath($base, $driver, $env);
    }
 
-   public function getFilesRemotePath(string $namePrefix): string
+   public function getFilesRemotePath(string $namePrefix, ?string $env = null): string
    {
       $base = config('easy-backups.defaults.files.remote_path', 'file-backups');
       $subFolder = Str::slug($namePrefix);
 
-      return $this->buildRemotePath($base, $subFolder);
+      return $this->buildRemotePath($base, $subFolder, $env);
    }
 
    // --- Absolute Paths (for File Facade / Native Operations) ---
@@ -60,12 +60,12 @@ final class PathGenerator
 
    // --- Internal Logic ---
 
-   private function buildRemotePath(string $base, string $subFolder): string
+   private function buildRemotePath(string $base, string $subFolder, ?string $env = null): string
    {
       $parts = [];
 
       if (config('easy-backups.defaults.strategy.prefix_env', true)) {
-         $parts[] = (string) config('app.env');
+         $parts[] = $env ?? (string) config('app.env');
       }
 
       $parts[] = trim($base, '/');
