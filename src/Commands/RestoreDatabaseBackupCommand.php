@@ -7,8 +7,9 @@ namespace Aaix\LaravelEasyBackups\Commands;
 use Aaix\LaravelEasyBackups\Facades\Restorer;
 use Aaix\LaravelEasyBackups\Services\PathGenerator;
 use Illuminate\Console\Command;
-use function Laravel\Prompts\select;
+
 use function Laravel\Prompts\confirm;
+use function Laravel\Prompts\select;
 
 class RestoreDatabaseBackupCommand extends Command
 {
@@ -27,23 +28,33 @@ class RestoreDatabaseBackupCommand extends Command
       $connection = $this->option('to-database') ?? config('database.default');
       $useLocal = $this->option('local');
 
+      // Resolve Disks
       $localDisk = config('easy-backups.defaults.database.local_disk', 'local');
-      $defaultRemoteDisk = config('easy-backups.defaults.database.remote_disk', 's3-backup');
+      $defaultRemoteDisk = config('easy-backups.defaults.database.remote_disk', 'backup');
+      $sourceDisk = $useLocal ? $localDisk : ($this->option('from-disk') ?? $defaultRemoteDisk);
 
-      $remoteDisk = $this->option('from-disk') ?? $defaultRemoteDisk;
-      $sourceDisk = $useLocal ? $localDisk : $remoteDisk;
-
+      // Resolve Environment (Default to 'production' if looking remote, 'local' if looking local)
       $sourceEnv = $this->option('source-env') ?: ($useLocal ? config('app.env') : 'production');
 
       if ($useLocal) {
          $searchDir = config('easy-backups.defaults.database.local_path');
       } else {
-         $searchDir = app(PathGenerator::class)->getDatabaseRemotePath($connection, $sourceEnv);
+         $searchDir = app(PathGenerator::class)->getDatabaseRemotePath(
+            connectionName: $connection,
+            customBase: null,
+            enableEnvPathPrefix: true,
+            targetEnv: $sourceEnv
+         );
       }
 
       $this->info("Fetching available backups from disk: '{$sourceDisk}' (Dir: '{$searchDir}')...");
 
-      $backups = Restorer::getRecentBackups($sourceDisk, $searchDir);
+      try {
+         $backups = Restorer::getRecentBackups($sourceDisk, $searchDir);
+      } catch (\Exception $e) {
+         $this->error("Error accessing disk '{$sourceDisk}': " . $e->getMessage());
+         return self::FAILURE;
+      }
 
       if ($backups->isEmpty()) {
          $this->warn("No backups found on disk '{$sourceDisk}' in directory '{$searchDir}'.");
@@ -82,7 +93,7 @@ class RestoreDatabaseBackupCommand extends Command
       }
 
       if (!$useLocal && $sourceDisk !== $localDisk) {
-         if (confirm("Do you want to save a copy to '{$localDisk}' for faster future restores?")) {
+         if (confirm("Do you want to save a copy to '{$localDisk}' for faster future restores?", default: true)) {
             $restorer->saveCopyTo($localDisk);
          }
       }

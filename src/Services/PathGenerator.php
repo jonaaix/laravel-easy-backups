@@ -23,28 +23,36 @@ final class PathGenerator
       return config('easy-backups.defaults.files.local_path', 'easy-backups/files');
    }
 
-   public function getDatabaseRemotePath(string $connectionName, ?string $customBase = null, ?bool $enableEnvPathPrefix = null): string
-   {
+   public function getDatabaseRemotePath(
+      string $connectionName,
+      ?string $customBase = null,
+      ?bool $enableEnvPathPrefix = null,
+      ?string $targetEnv = null
+   ): string {
       if ($customBase) {
-         return $this->buildRemotePath(null, $customBase, null, $enableEnvPathPrefix);
+         return $this->buildRemotePath(null, $customBase, $targetEnv, $enableEnvPathPrefix);
       }
 
       $base = config('easy-backups.defaults.database.remote_path', 'db-backups');
       $driver = config("database.connections.{$connectionName}.driver", 'unknown');
 
-      return $this->buildRemotePath($base, $driver, null, $enableEnvPathPrefix);
+      return $this->buildRemotePath($base, $driver, $targetEnv, $enableEnvPathPrefix);
    }
 
-   public function getFilesRemotePath(string $namePrefix, ?string $customBase = null, ?bool $enableEnvPathPrefix = null): string
-   {
+   public function getFilesRemotePath(
+      string $namePrefix,
+      ?string $customBase = null,
+      ?bool $enableEnvPathPrefix = null,
+      ?string $targetEnv = null
+   ): string {
       if ($customBase) {
-         return $this->buildRemotePath(null, $customBase, null, $enableEnvPathPrefix);
+         return $this->buildRemotePath(null, $customBase, $targetEnv, $enableEnvPathPrefix);
       }
 
       $base = config('easy-backups.defaults.files.remote_path', 'file-backups');
       $subFolder = Str::slug($namePrefix);
 
-      return $this->buildRemotePath($base, $subFolder, null, $enableEnvPathPrefix);
+      return $this->buildRemotePath($base, $subFolder, $targetEnv, $enableEnvPathPrefix);
    }
 
    public function getAbsoluteTempPath(): string
