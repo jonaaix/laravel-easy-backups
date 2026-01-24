@@ -1,5 +1,8 @@
 # Changelog
 
+## Version v1.1.2
+- Add mail notification to create backup cmd
+
 ## Version v1.1.1
 - Fix default restore env path
 
