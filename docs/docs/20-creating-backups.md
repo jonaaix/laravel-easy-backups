@@ -4,11 +4,32 @@ sidebar_position: 20
 
 # Creating Backups
 
-This guide covers the most common ways to create and customize your backups using the fluent API.
+This guide covers the most common ways to create backups. You can either use the ready-to-go Artisan commands or the Fluent API for more granular control.
 
-## The Basics: Backing up a Database
+## The Quickest Way: Using the CLI
 
-The most fundamental use case is backing up a single database. The `Backup` facade provides a clean, readable way to define this task using the `database()` static method.
+For most standard use cases, you don't need to write any code. The package includes a robust Artisan command that handles compression, encryption, and storage automatically.
+
+**Create a standard remote backup:**
+```bash
+php artisan easy-backups:db:create --compress
+```
+
+**Create a local-only snapshot (e.g. before a deploy):**
+
+```bash
+php artisan easy-backups:db:create --local --name="pre-deploy"
+```
+
+---
+
+## The Flexible Way: Using the Fluent API
+
+If you need to integrate backups into your own scheduled commands, jobs, or workflows, the `Backup` facade provides a clean, readable API.
+
+### The Basics: Backing up a Database
+
+The most fundamental use case is backing up a single database.
 
 Let's create a backup of the primary database, compress it, and store it **only** on the local disk (skipping any remote upload).
 

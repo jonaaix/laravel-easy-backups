@@ -31,10 +31,11 @@ php artisan easy-backups:db:restore --latest
 ```
 
 **Cross-Environment Restore:**
-Pull a backup from the `production` environment into your local machine (fetches from the remote disk).
+Pull a backup from another environment (e.g. `staging`) into your local machine.
+*(Note: If omitted, it defaults to `production` when running locally)*
 
 ```bash
-php artisan easy-backups:db:restore --source-env=production
+php artisan easy-backups:db:restore --source-env=staging
 ```
 
 **Restore from Local Disk:**
@@ -45,7 +46,7 @@ php artisan easy-backups:db:restore --local
 ```
 
 **Smart Local Caching:**
-When downloading a large backup from S3, the command can save a copy to your local disk. Future restores of the same file will check the local disk first, saving bandwidth and time.
+When downloading a large backup from the remote disk, the command can save a copy to your local disk. Future restores of the same file will check the local disk first, saving bandwidth and time.
 
 ## The Flexible Way: Custom Restore Logic
 

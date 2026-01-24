@@ -88,10 +88,10 @@ php artisan easy-backups:db:restore
 php artisan easy-backups:db:restore --latest
 ```
 
-**Restore a backup from Production environment:**
+**Restore a backup from the `staging` environment:**
 
 ```bash
-php artisan easy-backups:db:restore --source-env=production
+php artisan easy-backups:db:restore --source-env=staging
 ```
 
 **Restore from local storage:**
