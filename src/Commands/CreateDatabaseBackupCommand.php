@@ -17,7 +17,9 @@ class CreateDatabaseBackupCommand extends Command
                            {--name= : Optional suffix for the backup filename}
                            {--max-remote-backups= : Keep only the last N backups on remote}
                            {--max-remote-days= : Delete backups older than N days on remote}
-                           {--local : Store backup only locally (overrides to-disk)}';
+                           {--local : Store backup only locally (overrides to-disk)}
+                           {--notify-mail-success= : Email address for success notifications}
+                           {--notify-mail-failure= : Email address for failure notifications}';
 
    protected $description = 'Creates a new atomic database backup with optional remote upload and retention.';
 
@@ -71,6 +73,18 @@ class CreateDatabaseBackupCommand extends Command
       if ($maxRemoteDays && !$isLocalOnly) {
          $this->comment("Retention policy: Keeping backups for {$maxRemoteDays} days.");
          $backup->maxRemoteDays($maxRemoteDays);
+      }
+
+      $notifyMailSuccess = $this->option('notify-mail-success');
+      if ($notifyMailSuccess) {
+         $this->comment("Success notifications will be sent to: {$notifyMailSuccess}");
+         $backup->notifyOnSuccess('mail', $notifyMailSuccess);
+      }
+
+      $notifyMailFailure = $this->option('notify-mail-failure');
+      if ($notifyMailFailure) {
+         $this->comment("Failure notifications will be sent to: {$notifyMailFailure}");
+         $backup->notifyOnFailure('mail', $notifyMailFailure);
       }
 
       $result = $backup->run();

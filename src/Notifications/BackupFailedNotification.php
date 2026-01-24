@@ -26,13 +26,15 @@ class BackupFailedNotification extends Notification
 
     public function toMail(mixed $notifiable): MailMessage
     {
+        $appName = config('app.name');
+
         return (new MailMessage())
-            ->subject('❌ Backup failed!')
-            ->greeting('Hello!')
+            ->error()
+            ->subject("{$appName}: Backup failed!")
+            ->greeting('Backup Failed')
             ->line('The backup process failed with an exception.')
             ->line('**Exception Message:** ' . $this->exception->getMessage())
             ->line('**File:** ' . $this->exception->getFile())
-            ->line('**Line:** ' . $this->exception->getLine())
-            ->error();
+            ->line('**Line:** ' . $this->exception->getLine());
     }
 }
