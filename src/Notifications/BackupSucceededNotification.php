@@ -30,19 +30,15 @@ class BackupSucceededNotification extends Notification
       $formattedSize = $this->formatSize($this->sizeInBytes);
       $appName = config('app.name');
 
-      $pathList = collect($this->paths)
-         ->map(fn(string $path) => '- `' . basename($path) . '`')
-         ->implode("\n");
-
       return (new MailMessage())
          ->success()
          ->subject("{$appName}: Backup was successful")
          ->greeting('Backup Succeeded!')
-         ->line("A new backup of your application has been successfully created on the disk '{$this->disk}'.")
+         ->line("A new backup of your application has been successfully created on the disk **{$this->disk}**.")
          ->line("**Total Size:** {$formattedSize}")
          ->line("**Number of Files:** {$fileCount}")
          ->line('**Created Artefacts:**')
-         ->line($pathList);
+         ->lines(collect($this->paths)->map(fn(string $path) => '- ' . basename($path))->toArray());
    }
 
    private function formatSize(int $bytes): string
