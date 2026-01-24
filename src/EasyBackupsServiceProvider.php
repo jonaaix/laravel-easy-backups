@@ -18,6 +18,7 @@ class EasyBackupsServiceProvider extends ServiceProvider
             'config',
          );
          $this->commands([
+            \Aaix\LaravelEasyBackups\Commands\EasyBackupsCommand::class,
             \Aaix\LaravelEasyBackups\Commands\CreateDatabaseBackupCommand::class,
             \Aaix\LaravelEasyBackups\Commands\RestoreDatabaseBackupCommand::class,
          ]);

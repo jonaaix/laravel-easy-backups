@@ -23,9 +23,21 @@ php artisan vendor:publish --provider="Aaix\LaravelEasyBackups\EasyBackupsServic
 
 This will create a `config/easy-backups.php` file in your project.
 
-## Quickstart: Creating a Database Backup
+## Quickstart: The Interactive Wizard
 
-For standard database backups, you don't need to write any code. The package comes with a ready-to-use Artisan command.
+The easiest way to use the package is via the included interactive wizard. It guides you through creating or restoring backups without needing to remember any flags or options.
+
+Simply run:
+
+```bash
+php artisan easy-backups
+```
+
+The wizard will ask you whether you want to create a new backup or restore an existing one and guide you through the necessary steps (compression, target disk, database connection, etc.).
+
+## Direct CLI Usage
+
+For quick one-liners, scripting, or CI/CD pipelines, you can use the specific Artisan commands directly without the interactive wizard.
 
 To create a backup of your default database and store it **only** locally:
 
