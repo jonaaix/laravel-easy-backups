@@ -184,11 +184,21 @@ final class Backup
 
    public function run(): mixed
    {
+      // Resolve Default Disk from Config if not explicitly set
+      $saveToDisk = $this->saveTo;
+      if ($saveToDisk === null) {
+         if (!empty($this->databasesToInclude)) {
+            $saveToDisk = config('easy-backups.defaults.database.remote_disk');
+         } elseif (!empty($this->filesToInclude)) {
+            $saveToDisk = config('easy-backups.defaults.files.remote_disk');
+         }
+      }
+
       $job = new BackupJob(
          databasesToInclude: $this->databasesToInclude,
          filesToInclude: $this->filesToInclude,
          directoriesToInclude: $this->directoriesToInclude,
-         saveTo: $this->saveTo,
+         saveTo: $saveToDisk,
          maxRemoteBackups: $this->maxRemoteBackups,
          maxRemoteDays: $this->maxRemoteDays,
          maxLocalBackups: $this->maxLocalBackups,

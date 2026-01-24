@@ -72,6 +72,7 @@ class BackupJob implements ShouldQueue
     */
    public function handle(BackupProcessor $processor): array
    {
+      // 0. Pre-flight Validation
       $this->validateConfiguration();
 
       if ($this->beforeHook && class_exists($this->beforeHook)) {
@@ -110,8 +111,10 @@ class BackupJob implements ShouldQueue
 
    private function validateConfiguration(): void
    {
+      // Validate Remote Disk if set
       if ($this->saveTo) {
          try {
+            // We just check if the disk configuration exists to fail early
             if (config("filesystems.disks.{$this->saveTo}") === null) {
                throw new \InvalidArgumentException("Backup Disk '{$this->saveTo}' is not defined in filesystems.php.");
             }
