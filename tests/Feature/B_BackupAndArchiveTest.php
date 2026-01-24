@@ -20,6 +20,7 @@ it('creates a valid, compressed backup archive for each driver', function (strin
       ->setLocalStorageDir($tempDir)
       ->setTempDirectory($tempDir)
       ->compress()
+      ->onlyLocal()
       ->run();
 
    expect($result)->toBeArray()->toHaveKeys(['paths', 'disk', 'size']);
@@ -64,6 +65,7 @@ it('creates a password-protected backup archive', function () {
       ->setLocalStorageDir($tempDir)
       ->setTempDirectory($tempDir)
       ->encryptWithPassword($password)
+      ->onlyLocal()
       ->run();
 
    expect($result)->toBeArray()->toHaveKeys(['paths', 'disk', 'size']);
