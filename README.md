@@ -35,16 +35,30 @@ php artisan vendor:publish --provider="Aaix\LaravelEasyBackups\EasyBackupsServic
 
 ## A Quick Look
 
-Laravel Easy Backups provides a fluent, chainable API to define your backup workflows directly in your Laravel application.
+**The Easy Way (CLI)**
 
-Here's a quick example of how to back up your primary database to an S3 disk while ensuring only the 10 most recent backups are
-kept.
+Use the **interactive wizard** to create or restore backups without remembering flags:
+
+```bash
+php artisan easy-backups
+```
+
+Or use the robust **direct commands** for cronjobs, scripts, and CI/CD:
+
+```bash
+php artisan easy-backups:db:create --compress
+php artisan easy-backups:db:restore
+```
+
+**The Flexible Way (Fluent API)**
+
+Define custom backup workflows directly in your code using the chainable API:
 
 ```php
 use Aaix\LaravelEasyBackups\Facades\Backup;
 
 Backup::database(config('database.default'))
-    ->saveTo('s3')
+    ->saveTo('backup')
     ->compress()
     ->maxRemoteBackups(10)
     ->run();
