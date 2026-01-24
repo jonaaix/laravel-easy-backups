@@ -16,7 +16,7 @@ php artisan easy-backups:db:restore
 
 When you run this command without arguments:
 
-1. It connects to your configured remote disk (default: `s3-backup`).
+1. It connects to your configured remote disk (default: `backup`).
 2. It automatically scans the correct directory for your current environment and database driver.
 3. It presents an **interactive list** allowing you to select the exact file to restore.
 4. It asks for confirmation before wiping your database.
@@ -31,10 +31,17 @@ php artisan easy-backups:db:restore --latest
 ```
 
 **Cross-Environment Restore:**
-Pull a backup from the `production` environment into your local machine.
+Pull a backup from the `production` environment into your local machine (fetches from the remote disk).
 
 ```bash
-php artisan easy-backups:db:restore --source-env=production --local
+php artisan easy-backups:db:restore --source-env=production
+```
+
+**Restore from Local Disk:**
+Force the command to look for backups on your local disk instead of the remote one.
+
+```bash
+php artisan easy-backups:db:restore --local
 ```
 
 **Smart Local Caching:**
@@ -48,7 +55,7 @@ If you need to integrate the restore process into a custom workflow (e.g., sanit
 use Aaix\LaravelEasyBackups\Facades\Restorer;
 
 Restorer::database()
-    ->fromDisk('s3-backup')
+    ->fromDisk('backup')
     ->toDatabase('mysql')
     ->latest()
     ->run();
@@ -60,7 +67,7 @@ If you need to restore an older, specific backup file instead of the latest one,
 
 ```php
 Restorer::database()
-    ->fromDisk('s3-backup')
+    ->fromDisk('backup')
     ->fromPath('production/db-backups/mysql/db-dump_2025-08-10.sql')
     ->toDatabase('mysql')
     ->run();

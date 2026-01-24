@@ -18,9 +18,11 @@ These methods are available on `Aaix\LaravelEasyBackups\Facades\Backup`.
 | `includeDirectories(array $dirs)` | Adds entire directories to the backup archive. Expects an array of absolute paths. |
 | `includeStorage(?string $path)` | Helper to include the storage directory (default: `storage_path('app')`). |
 | `includeEnv()` | Helper to include the `.env` file. |
-| `saveTo(string $disk)` | Sets the filesystem disk where the backup will be stored (e.g., 'local', 's3-backup'). |
+| `saveTo(string $disk)` | Sets the filesystem disk where the backup will be stored (e.g., 'backup'). If omitted, the default from config is used. |
+| `onlyLocal()` | Forces the backup to be stored **only** locally, preventing any upload to the remote disk. |
 | `setLocalStorageDir(string $path)` | Overrides the default local storage directory. |
-| `setRemoteStorageDir(string $path)` | Overrides the automatic path generation for the remote storage. |
+| `setRemoteStorageDir(string $path)` | Overrides the base folder structure (e.g. `{type}/{driver}`). |
+| `enableEnvPathPrefix(bool $enabled)` | Enables or disables the environment folder prefix (e.g. `production/`). Defaults to `true`. |
 | `maxRemoteBackups(int $count)` | Sets the number of backups to keep on the remote storage. Old backups will be deleted. |
 | `maxLocalBackups(int $count)` | Sets the number of backups to keep on the local storage. |
 | `keepLocal()` | If set, the local backup file will not be deleted after being uploaded to remote storage. |
@@ -42,7 +44,7 @@ These methods are available on `Aaix\LaravelEasyBackups\Facades\Restorer`.
 | :--- | :--- |
 | `database()` | **(Static)** Initiates a new restore process builder. |
 | `toDatabase(string $connection)` | Specifies the target database connection to overwrite. **Required.** |
-| `fromDisk(string $disk)` | The filesystem disk where the backup is located. |
+| `fromDisk(string $disk)` | The filesystem disk where the backup is located. Defaults to `backup`. |
 | `fromDir(string $directory)` | The directory on the disk to search for backups. |
 | `fromPath(string $path)` | The specific path to a backup file (relative to the disk root). |
 | `saveCopyTo(string $disk)` | Saves a copy of the downloaded backup to a local disk for caching. |

@@ -10,14 +10,14 @@ This guide covers the most common ways to create and customize your backups usin
 
 The most fundamental use case is backing up a single database. The `Backup` facade provides a clean, readable way to define this task using the `database()` static method.
 
-Let's create a backup of the primary database, compress it, and store it on the default local disk.
+Let's create a backup of the primary database, compress it, and store it **only** on the local disk (skipping any remote upload).
 
 ```php
 use Aaix\LaravelEasyBackups\Facades\Backup;
 
 Backup::database(config('database.default'))
     ->compress()
-    ->saveTo('local')
+    ->onlyLocal()
     ->run();
 ```
 
@@ -31,22 +31,22 @@ A core feature of this package is the ability to automatically clean up old back
 use Aaix\LaravelEasyBackups\Facades\Backup;
 
 Backup::database('app_data')
-    ->saveTo('s3-backup') // Matches the 'remote_disk' config default
+    ->saveTo('backup') // Optional: Defaults to the 'remote_disk' config
     ->compress()
     ->encryptWithPassword('secret')
-    ->maxRemoteBackups(7) // Keep the last 7 backups on S3
+    ->maxRemoteBackups(7) // Keep the last 7 backups on the remote disk
     ->maxLocalBackups(3)  // Keep the last 3 backups locally
     ->run();
 
 // Or simply using age-based retention:
 
 Backup::database('app_data')
-    ->saveTo('s3-backup')
     ->maxRemoteDays(40) // Deletes backups older than 40 days
     ->run();
 ```
 
-* `->saveTo('s3-backup')`: This method instructs the package to store the backup on the specified disk. Make sure this disk is defined in `config/filesystems.php`.
+* `->saveTo('my-backup')`: This method instructs the package to store the backup on the specified disk. If omitted, the default disk from `config/easy-backups.php` is used.
+* `->onlyLocal()`: Forces the backup to be stored only locally, ignoring any default remote disk configuration.
 * `->compress()`: This method instructs the package to compress the backup archive before storing it.
 * `->encryptWithPassword('secret')`: This method instructs the package to encrypt the backup archive.
 * `->maxRemoteBackups(7)`: After a successful backup to a remote disk, this will delete the oldest backups, ensuring only the 7 most recent ones are kept.
@@ -56,8 +56,18 @@ Backup::database('app_data')
 :::tip Automatic Path Generation
 You don't need to specify folder paths manually. The package uses a smart `PathGenerator` to automatically organize your backups:
 `{environment}/{type}/{driver}/{filename}`.
-For example: `production/db-backups/mysql/db-dump_...sql`.
-:::
+
+**Customizing Paths:**
+
+* **Disable Env Prefix:** Use `->enableEnvPathPrefix(false)` to remove the `{environment}` folder (e.g., `production/`).
+* **Custom Base Dir:** Use `->setRemoteStorageDir('custom-dir')` to replace `{type}/{driver}` with your own folder.
+
+**Examples:**
+
+* Default: `production/db-backups/mysql/db-dump_...sql`
+* With `setRemoteStorageDir('daily')`: `production/daily/db-dump_...sql`
+* With `setRemoteStorageDir('daily')` AND `enableEnvPathPrefix(false)`: `daily/db-dump_...sql`
+  :::
 
 ## Backing up Files and Directories
 
@@ -77,7 +87,7 @@ use Aaix\LaravelEasyBackups\Facades\Backup;
 Backup::files()
     ->includeDirectories([storage_path('app/public')])
     ->includeFiles([base_path('.env')])
-    ->saveTo('s3-backup')
+    ->saveTo('backup')
     ->run();
 ```
 
@@ -92,20 +102,19 @@ use Aaix\LaravelEasyBackups\Facades\Backup;
 Backup::files()
     ->includeStorage() // defaults to storage_path('app')
     ->includeEnv()     // defaults to base_path('.env')
-    ->saveTo('s3-backup')
-    ->run();
+    ->run(); // Automatically uses the default remote disk
 ```
 
 ## A More Advanced Example: Production Database Backup
 
-Let's imagine a complex scenario where you want to back up your main PostgreSQL database to an Amazon S3 bucket, encrypt it for security, and dispatch the job to a specific queue to avoid blocking user requests.
+Let's imagine a complex scenario where you want to back up your main PostgreSQL database to an Amazon S3 bucket (configured as `backup`), encrypt it for security, and dispatch the job to a specific queue to avoid blocking user requests.
 
 ```php
 use Aaix\LaravelEasyBackups\Facades\Backup;
 
 Backup::database('pgsql')
-    // 1. Store the final archive on the 's3-backup' disk
-    ->saveTo('s3-backup')
+    // 1. Store the final archive on the 'backup' disk
+    ->saveTo('backup')
 
     // 2. Ensure the backup is compressed and encrypted
     ->encryptWithPassword(config('app.backup_password'))
@@ -124,7 +133,7 @@ Backup::database('pgsql')
 ### Contextual Explanation
 
 * `Backup::database('pgsql')`: We initiate a backup specifically for the `pgsql` connection defined in `config/database.php`.
-* `->saveTo('s3-backup')`: This method is key for off-site backups.
+* `->saveTo('backup')`: This method is key for off-site backups.
 * `->encryptWithPassword(...)`: Secures your data at rest using Zip encryption.
 * `->onConnection('redis')`: It instructs the package to use a specific queue connection.
 * `->onQueue('backups')`: For long-running backups, it's wise to use a dedicated queue to avoid interfering with other application tasks.
@@ -136,9 +145,9 @@ When you call `run()`, a `BackupJob` is dispatched. Here’s a summary of what h
 
 1. **Temporary Directory**: A unique, temporary working directory is created (configured via `temp_path`).
 2. **Artifact Generation**:
+
 * If initialized with `database()`, a driver-specific `Dumper` creates a `.sql` dump.
 * If initialized with `files()`, the specified files are gathered.
-
 
 3. **Creating the Archive**: The artifacts are added to a single archive (ZIP or TAR). If you used `encryptWithPassword()`, the archive is encrypted.
 4. **Verification**: The package performs a quick integrity check on the archive to ensure it's not corrupted or empty.

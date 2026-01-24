@@ -19,7 +19,7 @@ php artisan easy-backups:db:create {--of-database=} {--to-disk=} {--compress} {-
 | Option | Description | Default Behavior |
 | --- | --- | --- |
 | `--of-database` | The database connection name to back up. | Defaults to your application's default connection. |
-| `--to-disk` | The filesystem disk to store the backup on. | Defaults to `s3-backup` (or configured remote disk). |
+| `--to-disk` | The filesystem disk to store the backup on. | Defaults to `backup` (or configured remote disk). |
 | `--compress` | Force compression into a `.zip` or `.tar.gz` archive. | If omitted, behavior depends on config. |
 | `--password` | Encrypt the backup with this password. Implies compression. | No encryption. |
 | `--name` | A custom suffix for the filename. |  |
@@ -29,7 +29,7 @@ php artisan easy-backups:db:create {--of-database=} {--to-disk=} {--compress} {-
 
 ### Usage Examples
 
-**Standard backup to S3:**
+**Standard backup to Remote Storage (Default):**
 
 ```bash
 php artisan easy-backups:db:create --compress
@@ -67,7 +67,7 @@ php artisan easy-backups:db:restore {--latest} {--from-disk=} {--to-database=} {
 
 | Option | Description | Default Behavior |
 | --- | --- | --- |
-| `--from-disk` | The filesystem disk where the backup is stored. | Defaults to `s3-backup`. |
+| `--from-disk` | The filesystem disk where the backup is stored. | Defaults to `backup`. |
 | `--to-database` | The target database connection to overwrite. | Defaults to default connection. |
 | `--source-env` | The environment to pull backups from (e.g., `production`). | Defaults to current environment. |
 | `--latest` | Restore the latest backup immediately without prompting. | Runs interactive selection. |

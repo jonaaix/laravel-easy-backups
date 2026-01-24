@@ -6,25 +6,27 @@ sidebar_position: 40
 
 This page provides ready-to-use solutions for common backup scenarios.
 
-## Daily Backup to S3 with Cleanup
+## Daily Backup to Remote Storage with Cleanup
 
-To create a daily automated backup of your main database to a remote location (e.g. S3) and keep only the 7 most recent backups, you can schedule the included Artisan command directly.
+To create a daily automated backup of your main database to a remote location (e.g. S3, configured as `backup`) and keep only the 7 most recent backups, you can schedule the included Artisan command directly.
 
 **In `routes/console.php`:**
 
 ```php
 use Illuminate\Support\Facades\Schedule;
 
-Schedule::command('easy-backups:db:create --compress --to-disk=s3-backup --max-remote-backups=7')
+Schedule::command('easy-backups:db:create --compress --max-remote-backups=7')
     ->daily()
     ->at('02:00');
 ```
+
+*Note: We omitted `--to-disk`, so it automatically uses the default remote disk defined in your config.*
 
 Alternatively, if you prefer a custom command class using the Facade:
 
 ```php
 Backup::database('mysql')
-    ->saveTo('s3-backup')
+    ->saveTo('backup')
     ->compress()
     ->maxRemoteBackups(7)
     ->run();
@@ -43,7 +45,7 @@ use Aaix\LaravelEasyBackups\Facades\Backup;
 
 // 1. Backup the Database
 Backup::database(config('database.default'))
-    ->saveTo('s3-backup')
+    ->saveTo('backup')
     ->compress()
     ->run();
 
@@ -52,7 +54,7 @@ Backup::files()
     ->includeDirectories([
         storage_path('app/public')
     ])
-    ->saveTo('s3-backup')
+    ->saveTo('backup')
     ->run();
 ```
 
@@ -67,7 +69,7 @@ use Aaix\LaravelEasyBackups\Facades\Backup;
 
 Backup::database('mysql')
     ->encryptWithPassword(config('app.backup_password'))
-    ->saveTo('s3-backup')
+    ->saveTo('backup')
     ->run();
 ```
 
@@ -79,7 +81,7 @@ To restore an encrypted backup, you must provide the password.
 use Aaix\LaravelEasyBackups\Facades\Restorer;
 
 Restorer::database()
-    ->fromDisk('s3-backup')
+    ->fromDisk('backup')
     ->toDatabase('mysql')
     ->latest()
     ->withPassword(config('app.backup_password'))
@@ -94,7 +96,7 @@ To receive alerts when a backup process fails (or succeeds), configure the notif
 use Aaix\LaravelEasyBackups\Facades\Backup;
 
 Backup::database('mysql')
-    ->saveTo('s3-backup')
+    ->saveTo('backup')
     ->compress()
     // Requires your mail driver to be configured
     ->notifyOnFailure('mail', 'monitoring@example.com') 

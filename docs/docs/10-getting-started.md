@@ -27,16 +27,16 @@ This will create a `config/easy-backups.php` file in your project.
 
 For standard database backups, you don't need to write any code. The package comes with a ready-to-use Artisan command.
 
-To create a backup of your default database and store it locally:
+To create a backup of your default database and store it **only** locally:
 
 ```bash
-php artisan easy-backups:db:create
+php artisan easy-backups:db:create --local
 ```
 
-To create a compressed backup and upload it to your configured remote disk (default: `s3-backup`):
+To create a compressed backup and upload it to your configured remote disk (default: `backup`):
 
 ```bash
-php artisan easy-backups:db:create --compress --to-disk=s3-backup
+php artisan easy-backups:db:create --compress
 ```
 
 You can verify the created backup using the restore command:
@@ -75,7 +75,7 @@ class DailyBackupCommand extends Command
         $this->info('Starting backup...');
 
         Backup::database('mysql')
-             ->saveTo('s3-backup')
+             ->saveTo('backup') // Optional: defaults to config('easy-backups.defaults.database.remote_disk')
              ->compress()
              ->run();
 
@@ -86,4 +86,4 @@ class DailyBackupCommand extends Command
 }
 ```
 
-This is just the beginning. For more details on customization, handling files, and retention policies, check out the [Creating Backups](https://www.google.com/search?q=./creating-backups) guide.
+This is just the beginning. For more details on customization, handling files, and retention policies, check out the **Creating Backups** guide.
