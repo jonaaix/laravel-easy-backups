@@ -30,6 +30,7 @@ final class Backup
    private string $namePrefix = 'backup';
    private ?string $filenameSuffix = null;
    private ?bool $enableEnvPathPrefix = null;
+   private bool $onlyLocal = false;
 
    /** Start a database-specific backup. */
    public static function database(string $connection): self
@@ -88,6 +89,12 @@ final class Backup
    public function saveTo(string $disk): self
    {
       $this->saveTo = $disk;
+      return $this;
+   }
+
+   public function onlyLocal(): self
+   {
+      $this->onlyLocal = true;
       return $this;
    }
 
@@ -184,9 +191,10 @@ final class Backup
 
    public function run(): mixed
    {
-      // Resolve Default Disk from Config if not explicitly set
+      // Resolve Default Disk from Config if not explicitly set AND not explicitly Local Only
       $saveToDisk = $this->saveTo;
-      if ($saveToDisk === null) {
+
+      if ($saveToDisk === null && !$this->onlyLocal) {
          if (!empty($this->databasesToInclude)) {
             $saveToDisk = config('easy-backups.defaults.database.remote_disk');
          } elseif (!empty($this->filesToInclude)) {
