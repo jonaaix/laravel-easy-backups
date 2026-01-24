@@ -8,8 +8,6 @@ use Illuminate\Support\Str;
 
 final class PathGenerator
 {
-   // --- Relative Paths (for Storage Facade) ---
-
    public function getTempPath(): string
    {
       return config('easy-backups.defaults.temp_path', 'easy-backups/tmp');
@@ -25,23 +23,29 @@ final class PathGenerator
       return config('easy-backups.defaults.files.local_path', 'easy-backups/files');
    }
 
-   public function getDatabaseRemotePath(string $connectionName, ?string $env = null): string
+   public function getDatabaseRemotePath(string $connectionName, ?string $customBase = null, ?bool $enableEnvPathPrefix = null): string
    {
+      if ($customBase) {
+         return $this->buildRemotePath(null, $customBase, null, $enableEnvPathPrefix);
+      }
+
       $base = config('easy-backups.defaults.database.remote_path', 'db-backups');
       $driver = config("database.connections.{$connectionName}.driver", 'unknown');
 
-      return $this->buildRemotePath($base, $driver, $env);
+      return $this->buildRemotePath($base, $driver, null, $enableEnvPathPrefix);
    }
 
-   public function getFilesRemotePath(string $namePrefix, ?string $env = null): string
+   public function getFilesRemotePath(string $namePrefix, ?string $customBase = null, ?bool $enableEnvPathPrefix = null): string
    {
+      if ($customBase) {
+         return $this->buildRemotePath(null, $customBase, null, $enableEnvPathPrefix);
+      }
+
       $base = config('easy-backups.defaults.files.remote_path', 'file-backups');
       $subFolder = Str::slug($namePrefix);
 
-      return $this->buildRemotePath($base, $subFolder, $env);
+      return $this->buildRemotePath($base, $subFolder, null, $enableEnvPathPrefix);
    }
-
-   // --- Absolute Paths (for File Facade / Native Operations) ---
 
    public function getAbsoluteTempPath(): string
    {
@@ -58,17 +62,20 @@ final class PathGenerator
       return storage_path('app/' . $this->getFilesLocalPath());
    }
 
-   // --- Internal Logic ---
-
-   private function buildRemotePath(string $base, string $subFolder, ?string $env = null): string
+   private function buildRemotePath(?string $base, string $subFolder, ?string $env = null, ?bool $enableEnvPathPrefix = null): string
    {
       $parts = [];
 
-      if (config('easy-backups.defaults.strategy.prefix_env', true)) {
+      $shouldPrefix = $enableEnvPathPrefix ?? config('easy-backups.defaults.strategy.prefix_env', true);
+
+      if ($shouldPrefix) {
          $parts[] = $env ?? (string) config('app.env');
       }
 
-      $parts[] = trim($base, '/');
+      if ($base) {
+         $parts[] = trim($base, '/');
+      }
+
       $parts[] = trim($subFolder, '/');
 
       return implode('/', array_filter($parts));

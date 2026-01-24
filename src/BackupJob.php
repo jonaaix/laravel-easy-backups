@@ -17,6 +17,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
@@ -48,6 +49,7 @@ class BackupJob implements ShouldQueue
       private readonly bool $shouldCompress = false,
       private readonly string $namePrefix = 'backup',
       private readonly ?string $filenameSuffix = null,
+      private readonly ?bool $enableEnvPathPrefix = null,
    ) {
       if ($tempDirectory) {
          $this->workingDirectory = $tempDirectory;
@@ -70,13 +72,14 @@ class BackupJob implements ShouldQueue
     */
    public function handle(BackupProcessor $processor): array
    {
+      $this->validateConfiguration();
+
       if ($this->beforeHook && class_exists($this->beforeHook)) {
          app()->call($this->beforeHook);
       }
 
       try {
          $result = $processor->execute($this);
-
          if ($this->afterHook && class_exists($this->afterHook)) {
             app()->call($this->afterHook);
          }
@@ -101,6 +104,20 @@ class BackupJob implements ShouldQueue
       } finally {
          if ($this->isManagedTempDirectory && File::isDirectory($this->workingDirectory)) {
             File::deleteDirectory($this->workingDirectory);
+         }
+      }
+   }
+
+   private function validateConfiguration(): void
+   {
+      if ($this->saveTo) {
+         try {
+            if (config("filesystems.disks.{$this->saveTo}") === null) {
+               throw new \InvalidArgumentException("Backup Disk '{$this->saveTo}' is not defined in filesystems.php.");
+            }
+         } catch (\Exception $e) {
+            Log::error("Laravel Easy Backups: Invalid Storage Disk Configuration. " . $e->getMessage());
+            throw $e;
          }
       }
    }
@@ -169,6 +186,7 @@ class BackupJob implements ShouldQueue
          'afterHook' => $this->afterHook,
          'shouldCompress' => $this->shouldCompress,
          'filenameSuffix' => $this->filenameSuffix,
+         'enableEnvPathPrefix' => $this->enableEnvPathPrefix,
       ];
    }
 
@@ -178,7 +196,6 @@ class BackupJob implements ShouldQueue
          return $this->localStorageDir;
       }
 
-      // Logic split: Database vs Files path default
       $pathGen = app(PathGenerator::class);
       $relativePath = !empty($this->databasesToInclude)
          ? $pathGen->getDatabaseLocalPath()
@@ -189,18 +206,14 @@ class BackupJob implements ShouldQueue
 
    private function getLocalDisk(): string
    {
-      // Fallback logic for disk selection
       if (!empty($this->databasesToInclude)) {
          return config('easy-backups.defaults.database.local_disk', 'local');
       }
       return config('easy-backups.defaults.files.local_disk', 'local');
    }
 
-   private function getRemoteStorageDir(): string
+   private function getRemoteStorageDir(): ?string
    {
-      // Note: Remote Path calculation depends on the specific artifact (DB or File)
-      // and is handled dynamically in BackupProcessor via PathGenerator.
-      // This method returns the user-override if set.
-      return $this->remoteStorageDir ?? '';
+      return $this->remoteStorageDir;
    }
 }

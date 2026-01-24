@@ -41,7 +41,7 @@ class BackupProcessor
 
       $artifacts = [];
 
-      // 1. Handle Databases
+      // ----- Step 1: Handle Databases -----
       if (!empty($config['databasesToInclude'])) {
          foreach ($config['databasesToInclude'] as $dbConnection) {
             $dumper = DumperFactory::create($dbConnection);
@@ -61,7 +61,6 @@ class BackupProcessor
                   directories: [],
                   password: $config['encryptionPassword']
                );
-
                $finalArchivePath = $dumpPath . '.' . $format->getExtension();
 
                if ($tempArchivePath !== $finalArchivePath) {
@@ -76,7 +75,12 @@ class BackupProcessor
                $dumpPath = $finalArchivePath;
             }
 
-            $remoteDir = $config['remoteStorageDir'] ?: $this->pathGenerator->getDatabaseRemotePath($dbConnection);
+            $remoteDir = $this->pathGenerator->getDatabaseRemotePath(
+               connectionName: $dbConnection,
+               customBase: $config['remoteStorageDir'],
+               enableEnvPathPrefix: $config['enableEnvPathPrefix']
+            );
+
             $artifacts[] = [
                'local_path' => $dumpPath,
                'remote_dir' => $remoteDir,
@@ -84,10 +88,9 @@ class BackupProcessor
          }
       }
 
-      // 2. Handle Files
+      // ----- Step 2: Handle Files -----
       else {
          $foundFiles = $this->findFiles($config['filesToInclude']);
-
          $timestamp = date('Y-m-d_H-i-s');
          $namePrefix = $job->getNamePrefix();
 
@@ -101,7 +104,6 @@ class BackupProcessor
             $config['directoriesToInclude'],
             $config['encryptionPassword']
          );
-
          $correctPath = "{$tempBasePath}." . $format->getExtension();
          if ($tempArchivePath !== $correctPath) {
             File::move($tempArchivePath, $correctPath);
@@ -111,7 +113,11 @@ class BackupProcessor
             $this->verifyBackup($correctPath);
          }
 
-         $remoteDir = $config['remoteStorageDir'] ?: $this->pathGenerator->getFilesRemotePath($namePrefix);
+         $remoteDir = $this->pathGenerator->getFilesRemotePath(
+            namePrefix: $namePrefix,
+            customBase: $config['remoteStorageDir'],
+            enableEnvPathPrefix: $config['enableEnvPathPrefix']
+         );
 
          $artifacts[] = [
             'local_path' => $correctPath,
@@ -119,7 +125,7 @@ class BackupProcessor
          ];
       }
 
-      // 3. Post-Processing
+      // ----- Step 3: Post-Processing -----
       $finalResults = [];
       $targetLocalDir = $config['localStorageDir'];
       File::ensureDirectoryExists($targetLocalDir);
@@ -144,7 +150,6 @@ class BackupProcessor
                disk: $config['saveTo'],
                remotePath: $artifact['remote_dir']
             );
-
             $this->cleanupBackupsAction->execute(
                disk: $config['saveTo'],
                path: $artifact['remote_dir'],
@@ -158,7 +163,7 @@ class BackupProcessor
             : $finalLocalPath;
       }
 
-      // 4. Cleanup Local
+      // ----- Step 4: Cleanup Local -----
       if ($config['saveTo'] && !$config['keepLocal']) {
          foreach ($artifacts as $artifact) {
             $path = $targetLocalDir . DIRECTORY_SEPARATOR . basename($artifact['local_path']);
@@ -170,16 +175,9 @@ class BackupProcessor
          $disk = $config['localDisk'];
          $driver = config("filesystems.disks.{$disk}.driver");
 
-         // If local path is relative (not 'local' driver), we use path generator logic via localStorageDir
-         // But CleanupAction needs the relative path for non-local drivers usually.
-         // For consistency with PathGenerator:
-
          if ($driver === 'local') {
             $cleanupPath = $config['localStorageDir'];
          } else {
-            // Re-resolve relative path via generator if needed, but localStorageDir is absolute path from BackupJob.
-            // We rely on BackupJob having set the correct absolute path.
-            // If we need relative for S3-like local disks:
             $cleanupPath = !empty($config['databasesToInclude'])
                ? $this->pathGenerator->getDatabaseLocalPath()
                : $this->pathGenerator->getFilesLocalPath();

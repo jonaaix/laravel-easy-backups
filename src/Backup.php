@@ -29,10 +29,9 @@ final class Backup
    private bool $shouldCompress = false;
    private string $namePrefix = 'backup';
    private ?string $filenameSuffix = null;
+   private ?bool $enableEnvPathPrefix = null;
 
-   /**
-    * Start a database-specific backup.
-    */
+   /** Start a database-specific backup. */
    public static function database(string $connection): self
    {
       $instance = new self();
@@ -41,9 +40,7 @@ final class Backup
       return $instance;
    }
 
-   /**
-    * Start a custom file backup.
-    */
+   /** Start a custom file backup. */
    public static function files(): self
    {
       $instance = new self();
@@ -67,6 +64,12 @@ final class Backup
    public function includeEnv(): self
    {
       $this->filesToInclude[] = base_path('.env');
+      return $this;
+   }
+
+   public function enableEnvPathPrefix(bool $enabled = true): self
+   {
+      $this->enableEnvPathPrefix = $enabled;
       return $this;
    }
 
@@ -201,6 +204,7 @@ final class Backup
          shouldCompress: $this->shouldCompress,
          namePrefix: $this->namePrefix,
          filenameSuffix: $this->filenameSuffix,
+         enableEnvPathPrefix: $this->enableEnvPathPrefix,
       );
 
       if (is_null($this->connection) && is_null($this->queue)) {
