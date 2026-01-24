@@ -7,6 +7,7 @@ namespace Aaix\LaravelEasyBackups;
 use Aaix\LaravelEasyBackups\Contracts\ProcessExecutor;
 use Aaix\LaravelEasyBackups\Events\RestoreFailed;
 use Aaix\LaravelEasyBackups\Events\RestoreSucceeded;
+use Aaix\LaravelEasyBackups\Services\ConsoleFeedback;
 use Aaix\LaravelEasyBackups\Services\PathGenerator;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -34,7 +35,6 @@ class RestoreJob implements ShouldQueue
       private readonly bool $useLatest = false,
       private readonly ?string $saveCopyDisk = null,
    ) {
-      // Refactored: Use centralized absolute path logic
       $this->tempDirectory = app(PathGenerator::class)->getAbsoluteTempPath() . '/' . Str::random(16);
    }
 
@@ -44,29 +44,30 @@ class RestoreJob implements ShouldQueue
          $this->sourcePath = $this->findLatestBackupPath();
       }
 
+      ConsoleFeedback::info("Starting restore for database '{$this->databaseConnection}'...");
+
       try {
          File::ensureDirectoryExists($this->tempDirectory);
          $localPath = $this->tempDirectory . DIRECTORY_SEPARATOR . basename($this->sourcePath);
 
-         // Download via Stream to save memory (RAM-safe for large files)
+         // Step 1: Download
+         ConsoleFeedback::step("Downloading backup from disk '{$this->sourceDisk}'...");
          Storage::disk($this->sourceDisk)->readStream($this->sourcePath)
             ? File::put($localPath, Storage::disk($this->sourceDisk)->readStream($this->sourcePath))
             : File::put($localPath, Storage::disk($this->sourceDisk)->get($this->sourcePath));
 
-         // Logic for saving a local copy if requested
          if ($this->saveCopyDisk) {
-            // Determine target directory via PathGenerator (Centralized Logic)
+            ConsoleFeedback::info("Caching a copy to local disk '{$this->saveCopyDisk}'...");
             $directory = app(PathGenerator::class)->getDatabaseLocalPath();
-
             $targetPath = $directory
                ? rtrim($directory, '/') . '/' . basename($this->sourcePath)
                : basename($this->sourcePath);
 
-            // Use 'rb' for binary safety and stream to prevent OOM
             Storage::disk($this->saveCopyDisk)->put($targetPath, fopen($localPath, 'rb'));
          }
 
-         // Detect format and extract
+         // Step 2: Extraction
+         ConsoleFeedback::step("Analyzing and extracting archive...");
          $dumpPath = match (true) {
             Str::endsWith($localPath, '.zip') => $this->extractZip($localPath),
             Str::endsWith($localPath, ['.tar', '.gz', '.zst']) => $this->extractTar($localPath),
@@ -74,23 +75,30 @@ class RestoreJob implements ShouldQueue
             default => throw new \Exception('Unsupported backup format.'),
          };
 
-         // Wipe database if requested
+         // Step 3: Wiping
          if ($this->shouldWipe) {
+            ConsoleFeedback::warning("Wiping existing data in '{$this->databaseConnection}'...");
             WiperFactory::create($this->databaseConnection)->wipe();
+         } else {
+            ConsoleFeedback::info("Skipping database wipe.");
          }
 
-         // Import the dump
+         // Step 4: Import
+         ConsoleFeedback::step("Importing SQL dump into database...");
          ImporterFactory::create($this->databaseConnection)->importFromFile($dumpPath);
 
+         ConsoleFeedback::success("Restore completed successfully.");
          event(new RestoreSucceeded($this->sourceDisk, $this->sourcePath, $this->databaseConnection));
+
       } catch (Throwable $e) {
+         ConsoleFeedback::error("Restore failed: " . $e->getMessage());
+
          event(new RestoreFailed(
             ['sourceDisk' => $this->sourceDisk, 'sourcePath' => $this->sourcePath, 'database' => $this->databaseConnection],
             $e
          ));
          throw $e;
       } finally {
-         // Always cleanup temp directory
          if (File::isDirectory($this->tempDirectory)) {
             File::deleteDirectory($this->tempDirectory);
          }
@@ -103,7 +111,6 @@ class RestoreJob implements ShouldQueue
       if (Str::endsWith($path, '.gz')) $flags = '-zxf';
       if (Str::endsWith($path, '.zst')) $flags = '--zstd -xf';
 
-      // Disable timeout for large archive extraction
       app(ProcessExecutor::class)->execute(
          command: sprintf('tar %s %s -C %s', $flags, escapeshellarg($path), escapeshellarg($this->tempDirectory)),
          cwd: $this->tempDirectory,

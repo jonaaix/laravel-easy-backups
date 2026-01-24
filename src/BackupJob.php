@@ -9,6 +9,7 @@ use Aaix\LaravelEasyBackups\Events\BackupSucceeded;
 use Aaix\LaravelEasyBackups\Notifications\BackupFailedNotification;
 use Aaix\LaravelEasyBackups\Notifications\BackupSucceededNotification;
 use Aaix\LaravelEasyBackups\Services\BackupProcessor;
+use Aaix\LaravelEasyBackups\Services\ConsoleFeedback;
 use Aaix\LaravelEasyBackups\Services\PathGenerator;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -79,8 +80,15 @@ class BackupJob implements ShouldQueue
          app()->call($this->beforeHook);
       }
 
+      // Feedback Start
+      $type = !empty($this->databasesToInclude) ? 'database' : 'files';
+      ConsoleFeedback::info("Starting {$type} backup process...");
+
       try {
          $result = $processor->execute($this);
+
+         ConsoleFeedback::success("Backup process completed successfully.");
+
          if ($this->afterHook && class_exists($this->afterHook)) {
             app()->call($this->afterHook);
          }
@@ -96,6 +104,8 @@ class BackupJob implements ShouldQueue
 
          return $result;
       } catch (Throwable $e) {
+         ConsoleFeedback::error("Backup failed: " . $e->getMessage());
+
          if (!empty($this->notifyOnFailure['channels'])) {
             $this->sendFailureNotification($e);
          }
