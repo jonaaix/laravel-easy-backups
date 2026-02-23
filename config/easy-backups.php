@@ -13,6 +13,9 @@ return [
          'local_path' => 'easy-backups/database',
          'remote_disk' => 'backup',
          'remote_path' => 'db-backups',
+         'mariadb' => [
+            'use_parallel' => true,
+         ],
       ],
 
       'files' => [
