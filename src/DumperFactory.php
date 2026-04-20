@@ -14,8 +14,11 @@ use InvalidArgumentException;
 
 final class DumperFactory
 {
-   public static function create(string $connectionName): Dumper
-   {
+   public static function create(
+      string $connectionName,
+      array $excludeTables = [],
+      array $excludeTableData = [],
+   ): Dumper {
       $config = config("database.connections.{$connectionName}");
       $executor = app(ProcessExecutor::class);
 
@@ -28,12 +31,21 @@ final class DumperFactory
          password: $config['password'] ?? '',
       );
 
-      return match ($connectionConfig->driver) {
+      $dumper = match ($connectionConfig->driver) {
          'mysql' => new MySqlDumper($connectionConfig, $executor),
          'mariadb' => new MariaDbDumper($connectionConfig, $executor),
          'pgsql' => new PostgreSqlDumper($connectionConfig, $executor),
          'sqlite' => new SqliteDumper($connectionConfig, $executor),
          default => throw new InvalidArgumentException("Unsupported database driver: {$connectionConfig->driver}"),
       };
+
+      if ($excludeTables) {
+         $dumper->excludeTables($excludeTables);
+      }
+      if ($excludeTableData) {
+         $dumper->excludeTableData($excludeTableData);
+      }
+
+      return $dumper;
    }
 }

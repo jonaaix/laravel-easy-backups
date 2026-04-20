@@ -19,7 +19,10 @@ class CreateDatabaseBackupCommand extends Command
                            {--max-remote-days= : Delete backups older than N days on remote}
                            {--local : Store backup only locally (overrides to-disk)}
                            {--notify-mail-success= : Email address for success notifications}
-                           {--notify-mail-failure= : Email address for failure notifications}';
+                           {--notify-mail-failure= : Email address for failure notifications}
+                           {--exclude-tables= : Comma-separated list of tables to exclude entirely (no structure, no data)}
+                           {--exclude-table-data= : Comma-separated list of tables to export structure only (no row data)}
+                           {--dry-run : Print what would be done without executing dumps, compression, or uploads}';
 
    protected $description = 'Creates a new atomic database backup with optional remote upload and retention.';
 
@@ -75,6 +78,23 @@ class CreateDatabaseBackupCommand extends Command
          $backup->maxRemoteDays($maxRemoteDays);
       }
 
+      if ($this->option('dry-run')) {
+         $this->comment('Dry-run mode enabled.');
+         $backup->dryRun();
+      }
+
+      $excludeTables = $this->parseTableList($this->option('exclude-tables'));
+      if (!empty($excludeTables)) {
+         $this->comment('Excluding tables entirely: ' . implode(', ', $excludeTables));
+         $backup->excludeTables($excludeTables);
+      }
+
+      $excludeTableData = $this->parseTableList($this->option('exclude-table-data'));
+      if (!empty($excludeTableData)) {
+         $this->comment('Excluding data (structure only) for: ' . implode(', ', $excludeTableData));
+         $backup->excludeTableData($excludeTableData);
+      }
+
       $notifyMailSuccess = $this->option('notify-mail-success');
       if ($notifyMailSuccess) {
          $this->comment("Success notifications will be sent to: {$notifyMailSuccess}");
@@ -90,12 +110,25 @@ class CreateDatabaseBackupCommand extends Command
       $result = $backup->run();
 
       if (is_array($result)) {
-         $this->displaySummary($result);
+         if ($result['dry_run'] ?? false) {
+            $this->newLine();
+            $this->info('Dry-run complete. No changes were made.');
+         } else {
+            $this->displaySummary($result);
+         }
       } else {
          $this->info('Backup job has been dispatched to the queue.');
       }
 
       return self::SUCCESS;
+   }
+
+   private function parseTableList(?string $raw): array
+   {
+      if (!$raw) {
+         return [];
+      }
+      return array_values(array_filter(array_map('trim', explode(',', $raw))));
    }
 
    private function displaySummary(array $result): void

@@ -31,6 +31,9 @@ final class Backup
    private ?string $filenameSuffix = null;
    private ?bool $enableEnvPathPrefix = null;
    private bool $onlyLocal = false;
+   private array $excludeTables = [];
+   private array $excludeTableData = [];
+   private bool $dryRun = false;
 
    /** Start a database-specific backup. */
    public static function database(string $connection): self
@@ -183,6 +186,30 @@ final class Backup
       return $this;
    }
 
+   /**
+    * Print what would be done without executing anything.
+    * No dumps are created, no files are written, no uploads happen.
+    */
+   public function dryRun(bool $enabled = true): self
+   {
+      $this->dryRun = $enabled;
+      return $this;
+   }
+
+   /** Exclude tables entirely (no structure, no data). */
+   public function excludeTables(array $tables): self
+   {
+      $this->excludeTables = array_values(array_unique(array_merge($this->excludeTables, $tables)));
+      return $this;
+   }
+
+   /** Export table structure only (skip row data). Useful for sensitive tables. */
+   public function excludeTableData(array $tables): self
+   {
+      $this->excludeTableData = array_values(array_unique(array_merge($this->excludeTableData, $tables)));
+      return $this;
+   }
+
    public function setTempDirectory(string $path): self
    {
       $this->tempDirectory = $path;
@@ -201,6 +228,12 @@ final class Backup
             $saveToDisk = config('easy-backups.defaults.files.remote_disk');
          }
       }
+
+      // Merge config defaults with fluent-provided exclusions
+      $configExcludeTables = (array) config('easy-backups.defaults.database.exclude_tables', []);
+      $configExcludeTableData = (array) config('easy-backups.defaults.database.exclude_table_data', []);
+      $excludeTables = array_values(array_unique(array_merge($configExcludeTables, $this->excludeTables)));
+      $excludeTableData = array_values(array_unique(array_merge($configExcludeTableData, $this->excludeTableData)));
 
       $job = new BackupJob(
          databasesToInclude: $this->databasesToInclude,
@@ -223,6 +256,9 @@ final class Backup
          namePrefix: $this->namePrefix,
          filenameSuffix: $this->filenameSuffix,
          enableEnvPathPrefix: $this->enableEnvPathPrefix,
+         excludeTables: $excludeTables,
+         excludeTableData: $excludeTableData,
+         dryRun: $this->dryRun,
       );
 
       if (is_null($this->connection) && is_null($this->queue)) {

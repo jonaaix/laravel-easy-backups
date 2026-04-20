@@ -21,3 +21,26 @@ it('accepts notify-mail-failure option in help', function () {
       ->expectsOutputToContain('notify-mail-failure')
       ->assertExitCode(0);
 });
+
+it('ensures the list backup command is registered and does not throw an error', function () {
+   $this->artisan('easy-backups:db:list', ['--help'])
+      ->assertExitCode(0);
+});
+
+it('accepts dry-run option in help', function () {
+   $this->artisan('easy-backups:db:create', ['--help'])
+      ->expectsOutputToContain('dry-run')
+      ->assertExitCode(0);
+});
+
+it('accepts exclude-tables option in help', function () {
+   $this->artisan('easy-backups:db:create', ['--help'])
+      ->expectsOutputToContain('exclude-tables')
+      ->assertExitCode(0);
+});
+
+it('accepts exclude-table-data option in help', function () {
+   $this->artisan('easy-backups:db:create', ['--help'])
+      ->expectsOutputToContain('exclude-table-data')
+      ->assertExitCode(0);
+});

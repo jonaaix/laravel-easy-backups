@@ -51,6 +51,9 @@ class BackupJob implements ShouldQueue
       private readonly string $namePrefix = 'backup',
       private readonly ?string $filenameSuffix = null,
       private readonly ?bool $enableEnvPathPrefix = null,
+      private readonly array $excludeTables = [],
+      private readonly array $excludeTableData = [],
+      private readonly bool $dryRun = false,
    ) {
       if ($tempDirectory) {
          $this->workingDirectory = $tempDirectory;
@@ -75,6 +78,10 @@ class BackupJob implements ShouldQueue
    {
       // 0. Pre-flight Validation
       $this->validateConfiguration();
+
+      if ($this->dryRun) {
+         return $this->executeDryRun();
+      }
 
       if ($this->beforeHook && class_exists($this->beforeHook)) {
          app()->call($this->beforeHook);
@@ -117,6 +124,65 @@ class BackupJob implements ShouldQueue
             File::deleteDirectory($this->workingDirectory);
          }
       }
+   }
+
+   /**
+    * Report what would happen without performing any side effects.
+    * Resolves dumper commands per DB connection and returns them for display.
+    */
+   private function executeDryRun(): array
+   {
+      ConsoleFeedback::warning('DRY-RUN: no files will be written, no uploads will happen.');
+
+      $commands = [];
+
+      if (!empty($this->databasesToInclude)) {
+         foreach ($this->databasesToInclude as $dbConnection) {
+            $dumper = \Aaix\LaravelEasyBackups\DumperFactory::create(
+               $dbConnection,
+               $this->excludeTables,
+               $this->excludeTableData,
+            );
+            $fakePath = $this->workingDirectory . DIRECTORY_SEPARATOR . "db-dump_{$dbConnection}.sql";
+            $commands[] = [
+               'connection' => $dbConnection,
+               'target_path' => $fakePath,
+               'command' => $dumper->getDumpCommand($fakePath),
+            ];
+         }
+      }
+
+      foreach ($commands as $entry) {
+         ConsoleFeedback::step("Database: {$entry['connection']}");
+         ConsoleFeedback::info("Would dump to: {$entry['target_path']}");
+         ConsoleFeedback::info('Command: ' . $entry['command']);
+      }
+
+      if ($this->shouldCompress || $this->encryptionPassword) {
+         $mode = $this->encryptionPassword ? 'zip (encrypted)' : 'auto-detected format';
+         ConsoleFeedback::info("Would compress dump(s) as: {$mode}");
+      }
+
+      if ($this->saveTo) {
+         ConsoleFeedback::info("Would upload to disk: {$this->saveTo}");
+      } else {
+         ConsoleFeedback::info('Would keep artifact(s) on local disk only.');
+      }
+
+      if ($this->maxRemoteBackups > 0) {
+         ConsoleFeedback::info("Retention: keep {$this->maxRemoteBackups} most recent remote backups.");
+      }
+      if ($this->maxRemoteDays > 0) {
+         ConsoleFeedback::info("Retention: delete remote backups older than {$this->maxRemoteDays} days.");
+      }
+
+      return [
+         'dry_run' => true,
+         'paths' => [],
+         'disk' => $this->saveTo ?? $this->getLocalDisk(),
+         'size' => 0,
+         'commands' => $commands,
+      ];
    }
 
    private function validateConfiguration(): void
@@ -200,6 +266,8 @@ class BackupJob implements ShouldQueue
          'shouldCompress' => $this->shouldCompress,
          'filenameSuffix' => $this->filenameSuffix,
          'enableEnvPathPrefix' => $this->enableEnvPathPrefix,
+         'excludeTables' => $this->excludeTables,
+         'excludeTableData' => $this->excludeTableData,
       ];
    }
 

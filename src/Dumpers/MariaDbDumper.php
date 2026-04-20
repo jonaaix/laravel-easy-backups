@@ -6,25 +6,24 @@ namespace Aaix\LaravelEasyBackups\Dumpers;
 
 class MariaDbDumper extends MySqlDumper
 {
-   public function getDumpCommand(string $path): string
+   protected function getBinaryName(): string
    {
-      $command = parent::getDumpCommand($path);
-      $command = str_replace('mysqldump', 'mariadb-dump', $command);
+      $binary = 'mariadb-dump';
 
       if (!config('easy-backups.defaults.database.mariadb.use_parallel', true)) {
-         return $command;
+         return $binary;
       }
 
       if (!$this->supportsParallel()) {
-         return $command;
+         return $binary;
       }
 
       $threads = $this->determineOptimalThreads();
       if ($threads > 1) {
-         $command = str_replace('mariadb-dump', "mariadb-dump --parallel={$threads}", $command);
+         $binary .= " --parallel={$threads}";
       }
 
-      return $command;
+      return $binary;
    }
 
    protected function determineOptimalThreads(): int

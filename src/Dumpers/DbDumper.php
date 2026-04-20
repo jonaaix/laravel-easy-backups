@@ -11,10 +11,25 @@ use Illuminate\Support\Facades\File;
 
 abstract class DbDumper implements Dumper
 {
+   protected array $excludeTables = [];
+   protected array $excludeTableData = [];
+
    public function __construct(
       protected ConnectionConfig $config,
       protected ProcessExecutor $executor
    ) {
+   }
+
+   public function excludeTables(array $tables): static
+   {
+      $this->excludeTables = array_values(array_filter(array_map('trim', $tables)));
+      return $this;
+   }
+
+   public function excludeTableData(array $tables): static
+   {
+      $this->excludeTableData = array_values(array_filter(array_map('trim', $tables)));
+      return $this;
    }
 
    abstract public function getDumpCommand(string $path): string;

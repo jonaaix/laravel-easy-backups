@@ -44,7 +44,11 @@ class BackupProcessor
       // ----- Step 1: Handle Databases -----
       if (!empty($config['databasesToInclude'])) {
          foreach ($config['databasesToInclude'] as $dbConnection) {
-            $dumper = DumperFactory::create($dbConnection);
+            $dumper = DumperFactory::create(
+               $dbConnection,
+               $config['excludeTables'] ?? [],
+               $config['excludeTableData'] ?? [],
+            );
             $timestamp = date('Y-m-d_H-i-s');
             $filename = "db-dump_{$dbConnection}_{$timestamp}{$suffix}.sql";
             $dumpPath = $workingDirectory . DIRECTORY_SEPARATOR . $filename;

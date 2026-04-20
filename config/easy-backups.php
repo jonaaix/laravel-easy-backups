@@ -16,6 +16,10 @@ return [
          'mariadb' => [
             'use_parallel' => true,
          ],
+         // Tables to exclude entirely from every database backup (no structure, no data).
+         'exclude_tables' => [],
+         // Tables where only the structure is exported (no row data). Useful for sensitive data.
+         'exclude_table_data' => [],
       ],
 
       'files' => [
