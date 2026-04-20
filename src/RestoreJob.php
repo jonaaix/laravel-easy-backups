@@ -7,6 +7,7 @@ namespace Aaix\LaravelEasyBackups;
 use Aaix\LaravelEasyBackups\Contracts\ProcessExecutor;
 use Aaix\LaravelEasyBackups\Events\RestoreFailed;
 use Aaix\LaravelEasyBackups\Events\RestoreSucceeded;
+use Aaix\LaravelEasyBackups\Services\BackupInventoryService;
 use Aaix\LaravelEasyBackups\Services\ConsoleFeedback;
 use Aaix\LaravelEasyBackups\Services\PathGenerator;
 use Illuminate\Bus\Queueable;
@@ -157,18 +158,12 @@ class RestoreJob implements ShouldQueue
 
    private function findLatestBackupPath(): string
    {
-      $disk = Storage::disk($this->sourceDisk);
-      $latestFile = collect($disk->files($this->sourceDirectory))
-         ->filter(fn(string $file) => Str::endsWith($file, ['.zip', '.sql', '.tar', '.gz', '.zst']))
-         ->mapWithKeys(fn(string $file) => [$file => $disk->lastModified($file)])
-         ->sortDesc()
-         ->keys()
-         ->first();
+      $latest = app(BackupInventoryService::class)->findLatest($this->sourceDisk, $this->sourceDirectory);
 
-      if (!$latestFile) {
+      if (!$latest) {
          throw new \Exception("No valid backup found in path '{$this->sourceDirectory}'.");
       }
 
-      return $latestFile;
+      return $latest['path'];
    }
 }
