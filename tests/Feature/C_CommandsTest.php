@@ -44,3 +44,8 @@ it('accepts exclude-table-data option in help', function () {
       ->expectsOutputToContain('exclude-table-data')
       ->assertExitCode(0);
 });
+
+it('ensures the manage backup command is registered and does not throw an error', function () {
+   $this->artisan('easy-backups:db:manage', ['--help'])
+      ->assertExitCode(0);
+});
