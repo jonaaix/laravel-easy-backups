@@ -26,11 +26,28 @@ class RestoreDatabaseBackupCommand extends Command
    public function handle(): int
    {
       $connection = $this->option('to-database') ?? config('database.default');
-      $useLocal = $this->option('local');
 
       // Resolve Disks
       $localDisk = config('easy-backups.defaults.database.local_disk', 'local');
       $defaultRemoteDisk = config('easy-backups.defaults.database.remote_disk', 'backup');
+
+      // Determine source: explicit flag, or ask interactively
+      if ($this->option('local')) {
+         $useLocal = true;
+      } elseif ($this->option('from-disk')) {
+         $useLocal = false;
+      } else {
+         $source = select(
+            label: 'Where would you like to restore from?',
+            options: [
+               'remote' => "Remote disk ({$defaultRemoteDisk})",
+               'local' => "Local disk ({$localDisk})",
+            ],
+            default: 'remote',
+         );
+         $useLocal = $source === 'local';
+      }
+
       $sourceDisk = $useLocal ? $localDisk : ($this->option('from-disk') ?? $defaultRemoteDisk);
 
       // Resolve Environment (Default to 'production' if looking remote, 'local' if looking local)
