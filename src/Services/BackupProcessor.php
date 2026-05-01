@@ -188,9 +188,10 @@ class BackupProcessor
          }
 
          $this->cleanupBackupsAction->execute(
-            $disk,
-            $cleanupPath,
-            $config['maxLocalBackups']
+            disk: $disk,
+            path: $cleanupPath,
+            maxBackups: $config['maxLocalBackups'],
+            maxDays: $config['maxLocalDays'] ?? 0,
          );
       }
 

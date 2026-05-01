@@ -17,7 +17,10 @@ class CreateDatabaseBackupCommand extends Command
                            {--name= : Optional suffix for the backup filename}
                            {--max-remote-backups= : Keep only the last N backups on remote}
                            {--max-remote-days= : Delete backups older than N days on remote}
+                           {--max-local-backups= : Keep only the last N backups locally}
+                           {--max-local-days= : Delete local backups older than N days}
                            {--local : Store backup only locally (overrides to-disk)}
+                           {--keep-local : Keep the local copy after a remote upload (no-op with --local)}
                            {--notify-mail-success= : Email address for success notifications}
                            {--notify-mail-failure= : Email address for failure notifications}
                            {--exclude-tables= : Comma-separated list of tables to exclude entirely (no structure, no data)}
@@ -55,6 +58,8 @@ class CreateDatabaseBackupCommand extends Command
       $compress = $this->option('compress') || $password;
       $maxRemoteBackups = $this->option('max-remote-backups') ? (int)$this->option('max-remote-backups') : null;
       $maxRemoteDays = $this->option('max-remote-days') ? (int)$this->option('max-remote-days') : null;
+      $maxLocalBackups = $this->option('max-local-backups') ? (int)$this->option('max-local-backups') : null;
+      $maxLocalDays = $this->option('max-local-days') ? (int)$this->option('max-local-days') : null;
 
       if ($compress) {
          $backup->compress();
@@ -76,6 +81,21 @@ class CreateDatabaseBackupCommand extends Command
       if ($maxRemoteDays && !$isLocalOnly) {
          $this->comment("Retention policy: Keeping backups for {$maxRemoteDays} days.");
          $backup->maxRemoteDays($maxRemoteDays);
+      }
+
+      if ($maxLocalBackups) {
+         $this->comment("Retention policy: Keeping last {$maxLocalBackups} local backups.");
+         $backup->maxLocalBackups($maxLocalBackups);
+      }
+
+      if ($maxLocalDays) {
+         $this->comment("Retention policy: Keeping local backups for {$maxLocalDays} days.");
+         $backup->maxLocalDays($maxLocalDays);
+      }
+
+      if ($this->option('keep-local') && !$isLocalOnly) {
+         $this->comment('Local copy will be kept after remote upload.');
+         $backup->keepLocal();
       }
 
       if ($this->option('dry-run')) {

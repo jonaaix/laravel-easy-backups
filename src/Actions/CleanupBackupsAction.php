@@ -24,7 +24,7 @@ final class CleanupBackupsAction
       $driver = config("filesystems.disks.{$disk}.driver");
 
       if ($driver === 'local') {
-         $this->cleanupLocalBackups($disk, $path, $maxBackups);
+         $this->cleanupLocalBackups($disk, $path, $maxBackups, $maxDays);
       } else {
          $this->cleanupRemoteBackups($disk, $path, $maxBackups, $maxDays);
       }
@@ -63,14 +63,34 @@ final class CleanupBackupsAction
       }
    }
 
-   private function cleanupLocalBackups(string $disk, string $path, int $maxBackups): void
+   private function cleanupLocalBackups(string $disk, string $path, int $maxBackups, int $maxDays): void
    {
       $backups = $this->inventory->list($disk, $path)->reverse()->values();
+      if ($backups->isEmpty()) {
+         return;
+      }
+
+      $deletedCount = 0;
+
+      if ($maxDays > 0) {
+         $threshold = now()->subDays($maxDays)->getTimestamp();
+         [$expired, $backups] = $backups->partition(fn(array $entry) => $entry['last_modified'] < $threshold);
+
+         if ($expired->isNotEmpty()) {
+            File::delete($expired->pluck('path')->all());
+            $deletedCount += $expired->count();
+            $backups = $backups->values();
+         }
+      }
 
       if ($maxBackups > 0 && $backups->count() > $maxBackups) {
          $toDelete = $backups->slice(0, $backups->count() - $maxBackups);
          File::delete($toDelete->pluck('path')->all());
-         event(new CleanupSucceeded('local', $path, $toDelete->count()));
+         $deletedCount += $toDelete->count();
+      }
+
+      if ($deletedCount > 0) {
+         event(new CleanupSucceeded('local', $path, $deletedCount));
       }
    }
 }

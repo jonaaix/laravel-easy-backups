@@ -15,6 +15,7 @@ final class Backup
    private int $maxRemoteBackups = 0;
    private int $maxRemoteDays = 0;
    private int $maxLocalBackups = 0;
+   private int $maxLocalDays = 0;
    private bool $keepLocal = false;
    private ?string $queue = null;
    private ?string $connection = null;
@@ -131,6 +132,12 @@ final class Backup
       return $this;
    }
 
+   public function maxLocalDays(int $days): self
+   {
+      $this->maxLocalDays = $days;
+      return $this;
+   }
+
    public function keepLocal(): self
    {
       $this->keepLocal = true;
@@ -243,6 +250,7 @@ final class Backup
          maxRemoteBackups: $this->maxRemoteBackups,
          maxRemoteDays: $this->maxRemoteDays,
          maxLocalBackups: $this->maxLocalBackups,
+         maxLocalDays: $this->maxLocalDays,
          keepLocal: $this->keepLocal,
          localStorageDir: $this->localStorageDir,
          remoteStorageDir: $this->remoteStorageDir,

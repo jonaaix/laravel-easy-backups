@@ -24,7 +24,9 @@ These methods are available on `Aaix\LaravelEasyBackups\Facades\Backup`.
 | `setRemoteStorageDir(string $path)` | Overrides the base folder structure (e.g. `{type}/{driver}`). |
 | `enableEnvPathPrefix(bool $enabled)` | Enables or disables the environment folder prefix (e.g. `production/`). Defaults to `true`. |
 | `maxRemoteBackups(int $count)` | Sets the number of backups to keep on the remote storage. Old backups will be deleted. |
+| `maxRemoteDays(int $days)` | Deletes remote backups older than `$days` days. Can be combined with `maxRemoteBackups()`. |
 | `maxLocalBackups(int $count)` | Sets the number of backups to keep on the local storage. |
+| `maxLocalDays(int $days)` | Deletes local backups older than `$days` days. Can be combined with `maxLocalBackups()`. |
 | `keepLocal()` | If set, the local backup file will not be deleted after being uploaded to remote storage. |
 | `compress()` | Compresses the final backup archive into a `.zip` or `.tar.gz` file. |
 | `encryptWithPassword(string $pass)` | Encrypts the backup archive with a password. |

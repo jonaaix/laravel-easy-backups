@@ -38,6 +38,7 @@ class BackupJob implements ShouldQueue
       private readonly int $maxRemoteBackups,
       private readonly int $maxRemoteDays,
       private readonly int $maxLocalBackups,
+      private readonly int $maxLocalDays,
       private readonly bool $keepLocal,
       private readonly ?string $localStorageDir,
       private readonly ?string $remoteStorageDir,
@@ -175,6 +176,12 @@ class BackupJob implements ShouldQueue
       if ($this->maxRemoteDays > 0) {
          ConsoleFeedback::info("Retention: delete remote backups older than {$this->maxRemoteDays} days.");
       }
+      if ($this->maxLocalBackups > 0) {
+         ConsoleFeedback::info("Retention: keep {$this->maxLocalBackups} most recent local backups.");
+      }
+      if ($this->maxLocalDays > 0) {
+         ConsoleFeedback::info("Retention: delete local backups older than {$this->maxLocalDays} days.");
+      }
 
       return [
          'dry_run' => true,
@@ -254,6 +261,7 @@ class BackupJob implements ShouldQueue
          'maxRemoteBackups' => $this->maxRemoteBackups,
          'maxRemoteDays' => $this->maxRemoteDays,
          'maxLocalBackups' => $this->maxLocalBackups,
+         'maxLocalDays' => $this->maxLocalDays,
          'keepLocal' => $this->keepLocal,
          'localDisk' => $this->getLocalDisk(),
          'localStorageDir' => $this->getLocalStorageDir(),

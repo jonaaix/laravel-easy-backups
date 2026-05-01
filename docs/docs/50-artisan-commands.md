@@ -11,7 +11,7 @@ The package includes two robust commands for managing database backups directly 
 Creates a new atomic database backup.
 
 ```bash
-php artisan easy-backups:db:create {--of-database=} {--to-disk=} {--compress} {--password=} {--name=} {--max-remote-backups=} {--max-remote-days=} {--local}
+php artisan easy-backups:db:create {--of-database=} {--to-disk=} {--compress} {--password=} {--name=} {--max-remote-backups=} {--max-remote-days=} {--max-local-backups=} {--max-local-days=} {--local} {--keep-local}
 ```
 
 **Options**
@@ -25,7 +25,12 @@ php artisan easy-backups:db:create {--of-database=} {--to-disk=} {--compress} {-
 | `--name` | A custom suffix for the filename. |  |
 | `--max-remote-backups` | Number of backups to keep on the remote disk. | No cleanup is performed. |
 | `--max-remote-days` | Delete backups older than N days on remote. | No cleanup is performed. |
+| `--max-local-backups` | Number of backups to keep on the local disk. | No cleanup is performed. |
+| `--max-local-days` | Delete local backups older than N days. | No cleanup is performed. |
 | `--local` | Store the backup **only** on the local disk. | Uploads to remote disk. |
+| `--keep-local` | Keep the local copy after a successful remote upload. Required to make `--max-local-*` effective in remote-upload flows. No-op when `--local` is set. | Local copy is deleted after upload. |
+
+> The `--max-local-*` options only take effect when there is a local copy after the run — i.e. when `--local` is used, or when `--keep-local` is combined with a remote upload. In the default flow (upload to remote without `--keep-local`), the local file is deleted right after upload.
 
 ### Usage Examples
 
@@ -51,6 +56,18 @@ php artisan easy-backups:db:create --max-remote-backups=10
 
 ```bash
 php artisan easy-backups:db:create --max-remote-days=30
+```
+
+**Local-only backup with combined retention (keep last 10 and not older than 5 days):**
+
+```bash
+php artisan easy-backups:db:create --of-database=mysql --local --max-local-backups=10 --max-local-days=5
+```
+
+**Remote upload that also keeps a local copy with both retentions:**
+
+```bash
+php artisan easy-backups:db:create --keep-local --max-remote-backups=30 --max-local-backups=3
 ```
 
 ---

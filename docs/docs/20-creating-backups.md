@@ -46,33 +46,50 @@ This example is straightforward, but you can easily chain more methods to build 
 
 ## Managing Backup Retention with Cleanup Policies
 
-A core feature of this package is the ability to automatically clean up old backups. This prevents your storage from filling up with outdated files. You can define how many backups to keep for local and remote storage separately.
+A core feature of this package is the ability to automatically clean up old backups. This prevents your storage from filling up with outdated files. You can define retention for local and remote storage separately.
+
+:::info When local retention applies
+The `maxLocalBackups()` / `maxLocalDays()` options only have an effect when there actually is a local copy after the run — i.e. when you use `onlyLocal()`, or when you upload to a remote disk *and* call `keepLocal()`. In the default flow (upload to remote without `keepLocal()`), the local file is deleted right after the upload, so local retention has nothing to act on.
+:::
 
 ```php
 use Aaix\LaravelEasyBackups\Facades\Backup;
 
+// Remote upload with retention on the remote disk only.
+// Local copy is deleted right after upload — no local retention needed.
 Backup::database('app_data')
     ->saveTo('backup') // Optional: Defaults to the 'remote_disk' config
     ->compress()
     ->encryptWithPassword('secret')
     ->maxRemoteBackups(7) // Keep the last 7 backups on the remote disk
-    ->maxLocalBackups(3)  // Keep the last 3 backups locally
+    ->maxRemoteDays(40)   // Drop remote backups older than 40 days
     ->run();
 
-// Or simply using age-based retention:
-
+// Remote upload AND keep local copies — apply retention on both sides.
 Backup::database('app_data')
-    ->maxRemoteDays(40) // Deletes backups older than 40 days
+    ->saveTo('backup')
+    ->keepLocal()           // Local copy is preserved after upload
+    ->maxRemoteBackups(7)
+    ->maxLocalBackups(3)
+    ->run();
+
+// Local-only with combined count- and age-based retention.
+Backup::database('app_data')
+    ->onlyLocal()
+    ->maxLocalBackups(10) // Keep at most 10 local backups...
+    ->maxLocalDays(5)     // ...and drop anything older than 5 days
     ->run();
 ```
 
-* `->saveTo('my-backup')`: This method instructs the package to store the backup on the specified disk. If omitted, the default disk from `config/easy-backups.php` is used.
-* `->onlyLocal()`: Forces the backup to be stored only locally, ignoring any default remote disk configuration.
-* `->compress()`: This method instructs the package to compress the backup archive before storing it.
-* `->encryptWithPassword('secret')`: This method instructs the package to encrypt the backup archive.
-* `->maxRemoteBackups(7)`: After a successful backup to a remote disk, this will delete the oldest backups, ensuring only the 7 most recent ones are kept.
-* `->maxLocalBackups(3)`: Similarly, this manages the number of backups on your local filesystem.
-* `->maxRemoteDays(40)`: This method instructs the package to delete backups older than 40 days from the remote disk.
+* `->saveTo('my-backup')`: Stores the backup on the specified disk. If omitted, the default disk from `config/easy-backups.php` is used.
+* `->onlyLocal()`: Forces the backup to be stored only locally, skipping any remote upload.
+* `->keepLocal()`: When uploading to a remote disk, the local copy is **not** deleted afterwards. Required if you want local retention to take effect alongside remote upload.
+* `->compress()`: Compresses the backup archive before storing it.
+* `->encryptWithPassword('secret')`: Encrypts the backup archive.
+* `->maxRemoteBackups(7)`: After a successful upload, deletes the oldest remote backups so only the 7 most recent remain.
+* `->maxRemoteDays(40)`: Deletes remote backups older than 40 days.
+* `->maxLocalBackups(3)`: Keeps at most 3 backups on the local filesystem (only applies in `onlyLocal()` or `keepLocal()` flows).
+* `->maxLocalDays(7)`: Deletes local backups older than 7 days. Can be combined with `maxLocalBackups()` to enforce both a count and an age cap.
 
 :::tip Automatic Path Generation
 You don't need to specify folder paths manually. The package uses a smart `PathGenerator` to automatically organize your backups:
