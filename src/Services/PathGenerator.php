@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Aaix\LaravelEasyBackups\Services;
 
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 final class PathGenerator
@@ -21,6 +22,16 @@ final class PathGenerator
    public function getFilesLocalPath(): string
    {
       return config('easy-backups.defaults.files.local_path', 'easy-backups/files');
+   }
+
+   public function getDatabaseLocalDisk(): string
+   {
+      return config('easy-backups.defaults.database.local_disk', 'local');
+   }
+
+   public function getFilesLocalDisk(): string
+   {
+      return config('easy-backups.defaults.files.local_disk', 'local');
    }
 
    public function getDatabaseRemotePath(
@@ -57,17 +68,17 @@ final class PathGenerator
 
    public function getAbsoluteTempPath(): string
    {
-      return storage_path('app/' . $this->getTempPath());
+      return Storage::disk($this->getDatabaseLocalDisk())->path($this->getTempPath());
    }
 
    public function getAbsoluteDatabaseLocalPath(): string
    {
-      return storage_path('app/' . $this->getDatabaseLocalPath());
+      return Storage::disk($this->getDatabaseLocalDisk())->path($this->getDatabaseLocalPath());
    }
 
    public function getAbsoluteFilesLocalPath(): string
    {
-      return storage_path('app/' . $this->getFilesLocalPath());
+      return Storage::disk($this->getFilesLocalDisk())->path($this->getFilesLocalPath());
    }
 
    private function buildRemotePath(?string $base, string $subFolder, ?string $env = null, ?bool $enableEnvPathPrefix = null): string

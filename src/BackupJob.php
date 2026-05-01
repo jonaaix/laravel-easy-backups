@@ -20,7 +20,6 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
-use Illuminate\Support\Facades\Storage;
 use Throwable;
 
 class BackupJob implements ShouldQueue
@@ -286,19 +285,19 @@ class BackupJob implements ShouldQueue
       }
 
       $pathGen = app(PathGenerator::class);
-      $relativePath = !empty($this->databasesToInclude)
-         ? $pathGen->getDatabaseLocalPath()
-         : $pathGen->getFilesLocalPath();
 
-      return Storage::disk($this->getLocalDisk())->path($relativePath);
+      return !empty($this->databasesToInclude)
+         ? $pathGen->getAbsoluteDatabaseLocalPath()
+         : $pathGen->getAbsoluteFilesLocalPath();
    }
 
    private function getLocalDisk(): string
    {
-      if (!empty($this->databasesToInclude)) {
-         return config('easy-backups.defaults.database.local_disk', 'local');
-      }
-      return config('easy-backups.defaults.files.local_disk', 'local');
+      $pathGen = app(PathGenerator::class);
+
+      return !empty($this->databasesToInclude)
+         ? $pathGen->getDatabaseLocalDisk()
+         : $pathGen->getFilesLocalDisk();
    }
 
    private function getRemoteStorageDir(): ?string
