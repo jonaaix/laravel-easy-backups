@@ -62,7 +62,7 @@ class EasyBackupsCommand extends Command
       // 4. Custom Name
       $useCustomName = confirm(
          label: 'Do you want to add a custom name suffix?',
-         default: false
+         default: true
       );
 
       $name = $useCustomName ? text(

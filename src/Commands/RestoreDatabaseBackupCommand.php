@@ -110,7 +110,7 @@ class RestoreDatabaseBackupCommand extends Command
       }
 
       if (!$useLocal && $sourceDisk !== $localDisk) {
-         if (confirm("Do you want to save a copy to '{$localDisk}' for faster future restores?", default: true)) {
+         if (confirm("Do you want to save a copy to '{$localDisk}' for faster future restores?", default: false)) {
             $restorer->saveCopyTo($localDisk);
          }
       }
