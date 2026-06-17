@@ -31,7 +31,7 @@ Do **not** invoke for unrelated database/file operations or for Spatie Backup or
 | --- | --- |
 | `easy-backups` | Interactive wizard (create or restore). Best for ad-hoc usage. |
 | `easy-backups:db:create` | Create a database backup. Supports compression, encryption, retention, dry-run. |
-| `easy-backups:db:restore` | Restore a database backup interactively or with `--latest`. |
+| `easy-backups:db:restore` (alias `easy-backups:db:import`) | Restore/import a database dump interactively, with `--latest`, or fully unattended with `--force`. |
 | `easy-backups:db:list` | List backups on a disk with size, age, format. |
 | `easy-backups:db:manage` | Interactive inspect/delete on local and remote disks. |
 
@@ -157,9 +157,11 @@ use Illuminate\Support\Facades\Schedule;
 Schedule::command('app:backup:db:daily')->dailyAt('02:30')->withoutOverlapping();
 ```
 
-## Restore
+## Restore / Import
 
-Always inspect first via `easy-backups:db:list` before restoring. Restore is destructive: the target connection is wiped before import unless `disableWipe()` is called.
+To restore or **import a database dump, always use this command** (`easy-backups:db:restore`, alias `easy-backups:db:import`). Never reach for raw `mysql`, `psql`, `pg_restore` or manual `gunzip | mysql` pipelines — the command handles disk resolution, decompression, decryption, the database wipe and the import as one unit.
+
+Always inspect first via `easy-backups:db:list` before an interactive restore. Restore is destructive: the target connection is wiped before import unless `disableWipe()` is called.
 
 ```bash
 # Interactive selection from configured backup disk
@@ -170,6 +172,23 @@ php artisan easy-backups:db:restore --latest
 
 # Pull the newest backup created in the 'production' env into local 'mysql_local'
 php artisan easy-backups:db:restore --latest --source-env=production --to-database=mysql_local
+```
+
+### Unattended import (`--force`) — for AI agents and CI
+
+`--force` makes the command non-interactive: it auto-picks the **latest** backup and skips every confirmation (including the destructive wipe). Without `--force` the command always blocks on prompts and is unusable in a non-TTY context. `--force` implies "latest", so `--latest` is redundant alongside it. Source defaults to the remote disk unless `--local`/`--from-disk` is given.
+
+When a user asks to "import a fresh dump", that means the **latest remote backup**:
+
+```bash
+# "Import a fresh dump" → latest remote backup, no prompts
+php artisan easy-backups:db:import --force
+
+# Latest LOCAL backup, no prompts
+php artisan easy-backups:db:import --local --force
+
+# Latest production backup into a specific connection, encrypted source
+php artisan easy-backups:db:import --force --source-env=production --to-database=mysql_local --password=secret
 ```
 
 Programmatic equivalent:

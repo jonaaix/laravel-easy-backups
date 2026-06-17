@@ -49,3 +49,14 @@ it('ensures the manage backup command is registered and does not throw an error'
    $this->artisan('easy-backups:db:manage', ['--help'])
       ->assertExitCode(0);
 });
+
+it('registers the db:import alias for the restore command', function () {
+   $this->artisan('easy-backups:db:import', ['--help'])
+      ->assertExitCode(0);
+});
+
+it('accepts the force option on the restore command in help', function () {
+   $this->artisan('easy-backups:db:restore', ['--help'])
+      ->expectsOutputToContain('--force')
+      ->assertExitCode(0);
+});

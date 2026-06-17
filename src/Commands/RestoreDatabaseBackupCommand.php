@@ -19,13 +19,17 @@ class RestoreDatabaseBackupCommand extends Command
                             {--source-env= : The source environment to pull from (e.g. production)}
                             {--latest : Restore the latest backup without prompting}
                             {--password= : The password for an encrypted backup}
-                            {--local : Force use local disk}';
+                            {--local : Force use local disk}
+                            {--force : Run unattended: pick the latest backup and skip all confirmations}';
 
    protected $description = 'Restores a database backup from a local or remote disk with interactive selection.';
+
+   protected $aliases = ['easy-backups:db:import'];
 
    public function handle(): int
    {
       $connection = $this->option('to-database') ?? config('database.default');
+      $force = (bool) $this->option('force');
 
       // Resolve Disks
       $localDisk = config('easy-backups.defaults.database.local_disk', 'local');
@@ -35,6 +39,8 @@ class RestoreDatabaseBackupCommand extends Command
       if ($this->option('local')) {
          $useLocal = true;
       } elseif ($this->option('from-disk')) {
+         $useLocal = false;
+      } elseif ($force) {
          $useLocal = false;
       } else {
          $source = select(
@@ -78,7 +84,7 @@ class RestoreDatabaseBackupCommand extends Command
          return self::FAILURE;
       }
 
-      if ($this->option('latest')) {
+      if ($this->option('latest') || $force) {
          $selectedPath = $backups->first()['path'];
          $this->info("Selected latest backup: " . basename($selectedPath));
       } else {
@@ -92,7 +98,7 @@ class RestoreDatabaseBackupCommand extends Command
 
       $filename = basename($selectedPath);
 
-      if (!confirm(
+      if (!$force && !confirm(
          label: "DANGER: This will WIPE the database '{$connection}' and restore '{$filename}'. Continue?",
          default: false
       )) {
@@ -109,7 +115,7 @@ class RestoreDatabaseBackupCommand extends Command
          $restorer->withPassword($this->option('password'));
       }
 
-      if (!$useLocal && $sourceDisk !== $localDisk) {
+      if (!$force && !$useLocal && $sourceDisk !== $localDisk) {
          if (confirm("Do you want to save a copy to '{$localDisk}' for faster future restores?", default: false)) {
             $restorer->saveCopyTo($localDisk);
          }

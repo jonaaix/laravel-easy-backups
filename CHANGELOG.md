@@ -1,5 +1,10 @@
 # Changelog
 
+## Version v1.1.5
+- Add `easy-backups:db:import` as an alias of `easy-backups:db:restore` for better discoverability
+- Add `--force` flag to the restore command for unattended use: auto-selects the latest backup and skips all confirmations (CI / AI agents)
+- Document the import alias and unattended `--force` workflow in the Laravel Boost AI skill file
+
 ## Version v1.1.4
 - Add `--max-local-backups` / `--max-local-days` CLI options and `maxLocalDays()` fluent method
 - Add days-based retention for local backups (count + age can be combined)
