@@ -42,6 +42,10 @@ jobs:
 
             -   name: Install Composer dependencies
                 run: |
+                    # roave/security-advisories tracks the newest advisories and eventually conflicts
+                    # with older but still supported Laravel versions in the matrix. Drop it from CI
+                    # dependency resolution so every matrix entry stays installable.
+                    composer remove "roave/security-advisories" --dev --no-update --no-interaction
                     # Require framework, testbench, and phpunit versions for this matrix
                     composer require "laravel/framework:${{ matrix.laravel }}" \
                       "orchestra/testbench:${{ matrix.testbench }}" \
