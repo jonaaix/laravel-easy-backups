@@ -53,6 +53,7 @@ class BackupJob implements ShouldQueue
       private readonly ?bool $enableEnvPathPrefix = null,
       private readonly array $excludeTables = [],
       private readonly array $excludeTableData = [],
+      private readonly array $obfuscate = [],
       private readonly bool $dryRun = false,
    ) {
       if ($tempDirectory) {
@@ -136,12 +137,22 @@ class BackupJob implements ShouldQueue
 
       $commands = [];
 
+      $obfuscatedTables = array_values(array_unique(array_map(
+         static fn(string $key): string => explode('.', $key, 2)[0],
+         array_keys($this->obfuscate)
+      )));
+
       if (!empty($this->databasesToInclude)) {
          foreach ($this->databasesToInclude as $dbConnection) {
+            $structureOnlyTables = array_values(array_unique(array_merge(
+               $this->excludeTableData,
+               $obfuscatedTables
+            )));
+
             $dumper = \Aaix\LaravelEasyBackups\DumperFactory::create(
                $dbConnection,
                $this->excludeTables,
-               $this->excludeTableData,
+               $structureOnlyTables,
             );
             $fakePath = $this->workingDirectory . DIRECTORY_SEPARATOR . "db-dump_{$dbConnection}.sql";
             $commands[] = [
@@ -156,6 +167,10 @@ class BackupJob implements ShouldQueue
          ConsoleFeedback::step("Database: {$entry['connection']}");
          ConsoleFeedback::info("Would dump to: {$entry['target_path']}");
          ConsoleFeedback::info('Command: ' . $entry['command']);
+      }
+
+      if (!empty($obfuscatedTables)) {
+         ConsoleFeedback::info('Would obfuscate data for tables: ' . implode(', ', $obfuscatedTables));
       }
 
       if ($this->shouldCompress || $this->encryptionPassword) {
@@ -275,6 +290,7 @@ class BackupJob implements ShouldQueue
          'enableEnvPathPrefix' => $this->enableEnvPathPrefix,
          'excludeTables' => $this->excludeTables,
          'excludeTableData' => $this->excludeTableData,
+         'obfuscate' => $this->obfuscate,
       ];
    }
 

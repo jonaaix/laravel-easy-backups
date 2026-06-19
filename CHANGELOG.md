@@ -1,5 +1,11 @@
 # Changelog
 
+## Version v1.2.0
+- Add `obfuscate()` to the Fluent API for anonymized backups — replace sensitive column values with Faker-generated data via a `'table.column' => fn(Faker, $row)` map
+- Obfuscated tables are dumped structure-only, then re-inserted with fake data (NULLs preserved, FK checks toggled, queue-safe via `SerializableClosure`)
+- Add `fakerphp/faker` as an optional (`suggest`) dependency with a clear runtime guard
+- Add "Anonymizing Backups" documentation page
+
 ## Version v1.1.5
 - Add `easy-backups:db:import` as an alias of `easy-backups:db:restore` for better discoverability
 - Add `--force` flag to the restore command for unattended use: auto-selects the latest backup and skips all confirmations (CI / AI agents)

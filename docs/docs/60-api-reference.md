@@ -30,6 +30,7 @@ These methods are available on `Aaix\LaravelEasyBackups\Facades\Backup`.
 | `keepLocal()` | If set, the local backup file will not be deleted after being uploaded to remote storage. |
 | `compress()` | Compresses the final backup archive into a `.zip` or `.tar.gz` file. |
 | `encryptWithPassword(string $pass)` | Encrypts the backup archive with a password. |
+| `obfuscate(array $map)` | Replaces sensitive column values with fake data. Keyed by `'table.column'`, values are `fn(Faker $faker, array $row)`. See [Anonymizing Backups](/docs/anonymizing-backups). |
 | `before(string $hookClass)` | FQCN of an invokable class to run before the backup job starts. |
 | `after(string $hookClass)` | FQCN of an invokable class to run after the backup job successfully completes. |
 | `notifyOnSuccess(string\|array $ch)` | Sends a notification on successful backup to the specified channel(s). |
