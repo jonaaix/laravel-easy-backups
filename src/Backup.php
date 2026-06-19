@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Aaix\LaravelEasyBackups;
 
+use Aaix\LaravelEasyBackups\Exceptions\ObfuscationException;
+use Closure;
 use Illuminate\Foundation\Bus\PendingDispatch;
+use Laravel\SerializableClosure\SerializableClosure;
 
 final class Backup
 {
@@ -34,6 +37,7 @@ final class Backup
    private bool $onlyLocal = false;
    private array $excludeTables = [];
    private array $excludeTableData = [];
+   private array $obfuscate = [];
    private bool $dryRun = false;
 
    /** Start a database-specific backup. */
@@ -217,6 +221,27 @@ final class Backup
       return $this;
    }
 
+   /**
+    * Replace column values with generated fake data while keeping all other rows intact.
+    * Keys use the 'table.column' format, values are callables receiving (Faker $faker, array $row).
+    */
+   public function obfuscate(array $map): self
+   {
+      foreach ($map as $key => $callback) {
+         if (!is_string($key) || !preg_match('/^[A-Za-z0-9_]+\.[A-Za-z0-9_]+$/', $key)) {
+            throw ObfuscationException::invalidKey((string) $key);
+         }
+
+         if (!is_callable($callback)) {
+            throw ObfuscationException::notCallable($key);
+         }
+
+         $this->obfuscate[$key] = $callback;
+      }
+
+      return $this;
+   }
+
    public function setTempDirectory(string $path): self
    {
       $this->tempDirectory = $path;
@@ -242,6 +267,8 @@ final class Backup
       $excludeTables = array_values(array_unique(array_merge($configExcludeTables, $this->excludeTables)));
       $excludeTableData = array_values(array_unique(array_merge($configExcludeTableData, $this->excludeTableData)));
 
+      $obfuscate = $this->prepareObfuscation($excludeTables, $excludeTableData);
+
       $job = new BackupJob(
          databasesToInclude: $this->databasesToInclude,
          filesToInclude: $this->filesToInclude,
@@ -266,6 +293,7 @@ final class Backup
          enableEnvPathPrefix: $this->enableEnvPathPrefix,
          excludeTables: $excludeTables,
          excludeTableData: $excludeTableData,
+         obfuscate: $obfuscate,
          dryRun: $this->dryRun,
       );
 
@@ -280,5 +308,27 @@ final class Backup
       }
 
       return $dispatch;
+   }
+
+   private function prepareObfuscation(array $excludeTables, array $excludeTableData): array
+   {
+      if (empty($this->obfuscate)) {
+         return [];
+      }
+
+      $excluded = array_merge($excludeTables, $excludeTableData);
+      $prepared = [];
+
+      foreach ($this->obfuscate as $key => $callback) {
+         [$table] = explode('.', $key, 2);
+
+         if (in_array($table, $excluded, true)) {
+            throw ObfuscationException::conflictingTable($table);
+         }
+
+         $prepared[$key] = new SerializableClosure(Closure::fromCallable($callback));
+      }
+
+      return $prepared;
    }
 }

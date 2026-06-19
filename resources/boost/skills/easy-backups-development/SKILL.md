@@ -228,6 +228,32 @@ Backup::database('mysql')
 
 Defaults can also be set globally via `config('easy-backups.defaults.database.exclude_tables')` and `exclude_table_data`. Per-call values **merge** with config defaults, they don't replace them.
 
+## Anonymized backups — `obfuscate()`
+
+Use `obfuscate()` to produce a production-shaped backup with **fake** values in sensitive columns (realistic dev/staging data without real PII). It is **fluent-only** — there is no CLI flag (closures can't be passed on the command line).
+
+```php
+use Faker\Generator as Faker;
+
+Backup::database('mysql')
+    ->obfuscate([
+        'users.email' => fn (Faker $faker, array $row) => $faker->unique()->safeEmail(),
+        'users.name'  => fn (Faker $faker, array $row) => $faker->name(),
+    ])
+    ->onlyLocal()
+    ->run();
+```
+
+Mechanics and rules:
+- **Map shape:** keyed by `'table.column'`; value is `fn(Faker $faker, array $row)` (the full original row is passed).
+- **How it works:** obfuscated tables are dumped structure-only (like `excludeTableData`), then rows are read live, transformed, and appended as `INSERT`s with FK checks toggled around them.
+- **NULL stays NULL:** the callback is skipped for null source cells; unmapped columns are copied verbatim.
+- **Uniqueness is the caller's job:** for `UNIQUE` columns use `$faker->unique()->...` — there is no auto-unique.
+- **Never obfuscate PKs/FKs** — it breaks referential integrity. Target descriptive columns.
+- **Faker is optional:** `fakerphp/faker` is a `suggest`, not a hard dependency. Using `obfuscate()` without it throws a clear exception — install via `composer require fakerphp/faker`.
+- **Validation fails hard:** bad key format, non-callable value, table also in `excludeTables`/`excludeTableData`, or unknown table/column → exception.
+- **Queue-safe:** works with `->onQueue(...)`; callbacks are serialized via `SerializableClosure`.
+
 ## Dry-run before scheduling
 
 When introducing a new backup command, run with `--dry-run` (CLI) or `->dryRun()` (fluent) once to confirm:
@@ -251,5 +277,6 @@ No files are written and no uploads happen in dry-run.
 - ✅ Add `notifyOnFailure(...)` to scheduled backups so silent failures surface.
 - ✅ Run `--dry-run` once when authoring a new backup command.
 - ✅ Use `excludeTableData()` (not `excludeTables()`) for tables you still want to be able to recreate empty (e.g. analytics, audit logs).
+- ✅ Use `obfuscate()` for dev/staging snapshots that need real-world data shape without PII; add `$faker->unique()` for unique columns and never map PK/FK columns.
 - ❌ Don't hand-craft remote paths — let the package's `PathGenerator` produce `{env}/{type}/{driver}/...`.
 - ❌ Don't call `Backup::run()` from inside HTTP request lifecycles (controllers, listeners on hot paths). Dispatch via `onQueue()` or run from a command.

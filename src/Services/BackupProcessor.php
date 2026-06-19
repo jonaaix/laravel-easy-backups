@@ -7,6 +7,7 @@ namespace Aaix\LaravelEasyBackups\Services;
 use Aaix\LaravelEasyBackups\Actions\CleanupBackupsAction;
 use Aaix\LaravelEasyBackups\Actions\CreateArchive;
 use Aaix\LaravelEasyBackups\Actions\CreateDatabaseDumpAction;
+use Aaix\LaravelEasyBackups\Actions\ObfuscateTableDataAction;
 use Aaix\LaravelEasyBackups\Actions\UploadBackupAction;
 use Aaix\LaravelEasyBackups\Actions\VerifyBackupAction;
 use Aaix\LaravelEasyBackups\BackupJob;
@@ -21,6 +22,7 @@ class BackupProcessor
 {
    public function __construct(
       private readonly CreateDatabaseDumpAction $createDatabaseDumpAction,
+      private readonly ObfuscateTableDataAction $obfuscateTableDataAction,
       private readonly CreateArchive $createArchiveAction,
       private readonly UploadBackupAction $uploadBackupAction,
       private readonly CleanupBackupsAction $cleanupBackupsAction,
@@ -44,16 +46,26 @@ class BackupProcessor
       // ----- Step 1: Handle Databases -----
       if (!empty($config['databasesToInclude'])) {
          foreach ($config['databasesToInclude'] as $dbConnection) {
+            $obfuscate = $config['obfuscate'] ?? [];
+            $obfuscatedTables = $this->obfuscatedTables($obfuscate);
+
+            $structureOnlyTables = array_values(array_unique(array_merge(
+               $config['excludeTableData'] ?? [],
+               $obfuscatedTables
+            )));
+
             $dumper = DumperFactory::create(
                $dbConnection,
                $config['excludeTables'] ?? [],
-               $config['excludeTableData'] ?? [],
+               $structureOnlyTables,
             );
             $timestamp = date('Y-m-d_H-i-s');
             $filename = "db-dump_{$dbConnection}_{$timestamp}{$suffix}.sql";
             $dumpPath = $workingDirectory . DIRECTORY_SEPARATOR . $filename;
 
             $this->createDatabaseDumpAction->execute($dumper, $dumpPath);
+
+            $this->obfuscateTableDataAction->execute($dbConnection, $dumpPath, $obfuscate);
 
             if ($config['shouldCompress'] || $config['encryptionPassword']) {
                $initialExtension = $config['encryptionPassword'] ? 'zip' : 'tar';
@@ -200,6 +212,15 @@ class BackupProcessor
          'disk' => $config['saveTo'] ?? $config['localDisk'],
          'size' => isset($fileSize) ? $fileSize : 0,
       ];
+   }
+
+   private function obfuscatedTables(array $obfuscate): array
+   {
+      $tables = [];
+      foreach (array_keys($obfuscate) as $key) {
+         $tables[] = explode('.', $key, 2)[0];
+      }
+      return array_values(array_unique($tables));
    }
 
    private function findFiles(array $patterns): array
