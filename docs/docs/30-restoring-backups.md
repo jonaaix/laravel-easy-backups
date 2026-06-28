@@ -23,11 +23,18 @@ When you run this command without arguments:
 
 ### Advanced CLI Features
 
-**Automated Restoration (CI/CD friendly):**
-Restore the absolutely latest backup without any prompts.
+**Latest backup (skips file selection):**
+`--latest` auto-selects the most recent backup.
 
 ```bash
 php artisan easy-backups:db:restore --latest
+```
+
+**Automated Restoration (CI/CD friendly):**
+For a truly non-interactive run (reset scripts, pipelines) use `--force`. It picks the latest backup and skips **all** prompts. Add `--local` to pull the latest local backup instead of the remote `production` one.
+
+```bash
+php artisan easy-backups:db:restore --force --local
 ```
 
 **Cross-Environment Restore:**

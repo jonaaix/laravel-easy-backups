@@ -77,8 +77,10 @@ php artisan easy-backups:db:create --keep-local --max-remote-backups=30 --max-lo
 Restores a database from a backup. Runs in interactive mode by default.
 
 ```bash
-php artisan easy-backups:db:restore {--latest} {--from-disk=} {--to-database=} {--source-env=} {--password=} {--local}
+php artisan easy-backups:db:restore {--latest} {--force} {--from-disk=} {--to-database=} {--source-env=} {--password=} {--local}
 ```
+
+> Available under the alias `easy-backups:db:import` as well.
 
 **Options**
 
@@ -87,9 +89,12 @@ php artisan easy-backups:db:restore {--latest} {--from-disk=} {--to-database=} {
 | `--from-disk` | The filesystem disk where the backup is stored. | Defaults to `backup`. |
 | `--to-database` | The target database connection to overwrite. | Defaults to default connection. |
 | `--source-env` | The environment to pull backups from (e.g., `production`). | Defaults to current environment. |
-| `--latest` | Restore the latest backup immediately without prompting. | Runs interactive selection. |
+| `--latest` | Skip the backup-selection prompt and pick the most recent backup. | Runs interactive selection. |
+| `--force` | Run fully unattended: pick the latest backup and skip **all** prompts (source, wipe confirmation, local-copy). | Runs interactive selection. |
 | `--password` | Password for encrypted backups. |  |
 | `--local` | Force using the local disk as source. | Uses remote disk. |
+
+> `--latest` only auto-selects the file. For a non-interactive script (e.g. a reset/seed routine) use `--force`. With `--force` the source defaults to the **remote** disk in the `production` environment — combine with `--local` to pull the latest local backup instead.
 
 ### Usage Examples
 
@@ -99,10 +104,16 @@ php artisan easy-backups:db:restore {--latest} {--from-disk=} {--to-database=} {
 php artisan easy-backups:db:restore
 ```
 
-**Restore latest backup (Automated):**
+**Restore latest backup (skips file selection, still confirms):**
 
 ```bash
 php artisan easy-backups:db:restore --latest
+```
+
+**Fully unattended restore (CI/CD, reset scripts):**
+
+```bash
+php artisan easy-backups:db:restore --force --local
 ```
 
 **Restore a backup from the `staging` environment:**
