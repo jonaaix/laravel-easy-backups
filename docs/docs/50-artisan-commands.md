@@ -4,7 +4,7 @@ sidebar_position: 50
 
 # Included Artisan Commands
 
-The package includes two robust commands for managing database backups directly from the CLI.
+The package includes robust commands for creating, restoring and monitoring database backups directly from the CLI.
 
 ## `easy-backups:db:create`
 
@@ -126,4 +126,51 @@ php artisan easy-backups:db:restore --source-env=staging
 
 ```bash
 php artisan easy-backups:db:restore --local
+```
+
+---
+
+## `easy-backups:status`
+
+Shows the health of your backups at a glance: the five most recent backups per disk, the interval they are created at, whether the latest dump has a suspicious size, how fast the footprint grows, what the next cleanup would delete, and whether a backup is registered in the scheduler at all.
+
+```bash
+php artisan easy-backups:status {--max-remote-backups=} {--max-remote-days=} {--max-local-backups=} {--max-local-days=}
+```
+
+Both the local and the remote database disk are inspected. The command is read-only and always exits with code `0`.
+
+**Options**
+
+| Option | Description | Default Behavior |
+| --- | --- | --- |
+| `--max-remote-backups` | Retention count used for the remote cleanup preview. | Read from the scheduled `db:create` invocation, if any. |
+| `--max-remote-days` | Retention age in days used for the remote cleanup preview. | Read from the scheduled `db:create` invocation, if any. |
+| `--max-local-backups` | Retention count used for the local cleanup preview. | Read from the scheduled `db:create` invocation, if any. |
+| `--max-local-days` | Retention age in days used for the local cleanup preview. | Read from the scheduled `db:create` invocation, if any. |
+
+> Retention is not stored in the package configuration — it is passed to `easy-backups:db:create` per run. The status command therefore reads the retention values back from your scheduled invocation of `db:create`. Pass the options explicitly to preview a policy that is not scheduled.
+
+### What the signals mean
+
+| Signal | Meaning |
+| --- | --- |
+| **Cadence** | Median and average interval between backups, derived from the file timestamps. Warns when the largest gap exceeds twice the median interval — a strong hint that a scheduled run failed silently. |
+| **Size** | The newest backup compared against the median of up to 10 previous ones. Warns below 75% (a truncated dump that still exited successfully) or above 200%. |
+| **Growth** | Projected gross footprint per month, based on cadence and median backup size. Ignores cleanup, so it answers "how much would this grow unchecked". |
+| **Retention** | Simulates the next cleanup pass — how many backups and how many bytes it would delete. Grouped per upload directory, because cleanup operates per directory and non-recursively. |
+| **Scheduler** | Registered `easy-backups:*` schedule entries with their cron expression and next run. Warns when none is registered. |
+
+### Usage Examples
+
+**Check backup health:**
+
+```bash
+php artisan easy-backups:status
+```
+
+**Preview a retention policy that is not scheduled:**
+
+```bash
+php artisan easy-backups:status --max-remote-backups=14 --max-local-backups=2
 ```

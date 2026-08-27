@@ -1,5 +1,17 @@
 # Changelog
 
+## Version v1.3.0
+- Add `easy-backups:status` command — read-only health overview of local and remote database backups
+- Show the 5 most recent backups per disk with size, age and creation time
+- Detect cadence gaps: warns when the largest interval between backups exceeds twice the median
+- Detect size anomalies: warns when the newest backup falls below 75% or exceeds 200% of the median of up to 10 previous ones (catches truncated dumps that exited successfully)
+- Project gross storage growth per month from cadence and median backup size
+- Preview the next cleanup pass (deleted count and bytes), grouped per upload directory to match `CleanupBackupsAction` semantics
+- Report registered `easy-backups:*` scheduler entries with cron expression and next run, and warn when none is registered
+- Retention values for the preview are read back from the scheduled `db:create` invocation, overridable via `--max-remote-backups` / `--max-remote-days` / `--max-local-backups` / `--max-local-days`
+- Add `BackupStatisticsService` and `ScheduleInspector`
+- Document `easy-backups:status` in the Artisan commands page and the Laravel Boost AI skill file
+
 ## Version v1.2.0
 - Add `obfuscate()` to the Fluent API for anonymized backups — replace sensitive column values with Faker-generated data via a `'table.column' => fn(Faker, $row)` map
 - Obfuscated tables are dumped structure-only, then re-inserted with fake data (NULLs preserved, FK checks toggled, queue-safe via `SerializableClosure`)

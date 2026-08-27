@@ -60,3 +60,15 @@ it('accepts the force option on the restore command in help', function () {
       ->expectsOutputToContain('--force')
       ->assertExitCode(0);
 });
+
+it('ensures the status command is registered and does not throw an error', function () {
+   $this->artisan('easy-backups:status', ['--help'])
+      ->assertExitCode(0);
+});
+
+it('accepts retention override options on the status command in help', function () {
+   $this->artisan('easy-backups:status', ['--help'])
+      ->expectsOutputToContain('max-remote-backups')
+      ->expectsOutputToContain('max-local-days')
+      ->assertExitCode(0);
+});

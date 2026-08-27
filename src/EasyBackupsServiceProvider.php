@@ -23,6 +23,7 @@ class EasyBackupsServiceProvider extends ServiceProvider
             \Aaix\LaravelEasyBackups\Commands\ListDatabaseBackupsCommand::class,
             \Aaix\LaravelEasyBackups\Commands\ManageDatabaseBackupsCommand::class,
             \Aaix\LaravelEasyBackups\Commands\RestoreDatabaseBackupCommand::class,
+            \Aaix\LaravelEasyBackups\Commands\BackupStatusCommand::class,
          ]);
       }
    }
@@ -43,5 +44,7 @@ class EasyBackupsServiceProvider extends ServiceProvider
 
       $this->app->singleton(\Aaix\LaravelEasyBackups\Services\PathGenerator::class);
       $this->app->singleton(\Aaix\LaravelEasyBackups\Services\BackupInventoryService::class);
+      $this->app->singleton(\Aaix\LaravelEasyBackups\Services\BackupStatisticsService::class);
+      $this->app->singleton(\Aaix\LaravelEasyBackups\Services\ScheduleInspector::class);
    }
 }

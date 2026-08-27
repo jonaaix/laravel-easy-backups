@@ -34,6 +34,7 @@ Do **not** invoke for unrelated database/file operations or for Spatie Backup or
 | `easy-backups:db:restore` (alias `easy-backups:db:import`) | Restore/import a database dump interactively, with `--latest`, or fully unattended with `--force`. |
 | `easy-backups:db:list` | List backups on a disk with size, age, format. |
 | `easy-backups:db:manage` | Interactive inspect/delete on local and remote disks. |
+| `easy-backups:status` | Read-only health overview: recent backups, cadence gaps, size anomalies, growth, retention preview, scheduler state. |
 
 ### `easy-backups:db:create` flag cheatsheet
 
