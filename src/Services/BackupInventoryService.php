@@ -8,6 +8,8 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use League\Flysystem\FileAttributes;
+use League\Flysystem\StorageAttributes;
 
 /**
  * Central place for discovering existing backup artifacts on any disk.
@@ -45,15 +47,15 @@ final class BackupInventoryService
    private function listRemote(string $disk, string $path, bool $recursive): Collection
    {
       $remoteDisk = Storage::disk($disk);
-      $files = $recursive ? $remoteDisk->allFiles($path) : $remoteDisk->files($path);
+      $listing = $remoteDisk->getDriver()->listContents($path, $recursive);
 
-      return collect($files)
-         ->filter(fn(string $file) => self::isBackupFile(basename($file)))
-         ->map(fn(string $file) => [
-            'path' => $file,
-            'filename' => basename($file),
-            'size' => $remoteDisk->size($file),
-            'last_modified' => $remoteDisk->lastModified($file),
+      return collect($listing->toArray())
+         ->filter(fn(StorageAttributes $entry) => $entry->isFile() && self::isBackupFile(basename($entry->path())))
+         ->map(fn(FileAttributes $file) => [
+            'path' => $file->path(),
+            'filename' => basename($file->path()),
+            'size' => $file->fileSize() ?? $remoteDisk->size($file->path()),
+            'last_modified' => $file->lastModified() ?? $remoteDisk->lastModified($file->path()),
          ])
          ->sortByDesc('last_modified')
          ->values();

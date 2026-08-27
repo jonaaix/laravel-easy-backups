@@ -1,5 +1,11 @@
 # Changelog
 
+## Version v1.3.1
+- Fix N+1 on remote disks: `BackupInventoryService` read size and modification time per file, which is one HEAD request each on S3 (`1 + 2N` roundtrips per listing)
+- Remote listings now take size and timestamp from the `ListObjectsV2` response via `listContents()` — one request per 1000 objects
+- Speeds up `easy-backups:status`, `db:list`, `db:manage`, `CleanupBackupsAction` and `findLatest()` on S3-backed disks
+- Adapters that omit metadata in listings fall back to the individual lookup
+
 ## Version v1.3.0
 - Add `easy-backups:status` command — read-only health overview of local and remote database backups
 - Show the 5 most recent backups per disk with size, age and creation time
