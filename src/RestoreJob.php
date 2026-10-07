@@ -53,9 +53,17 @@ class RestoreJob implements ShouldQueue
 
          // Step 1: Download
          ConsoleFeedback::step("Downloading backup from disk '{$this->sourceDisk}'...");
+         if (!Storage::disk($this->sourceDisk)->exists($this->sourcePath)) {
+            throw new \Exception("Backup '{$this->sourcePath}' not found on disk '{$this->sourceDisk}'.");
+         }
+
          Storage::disk($this->sourceDisk)->readStream($this->sourcePath)
             ? File::put($localPath, Storage::disk($this->sourceDisk)->readStream($this->sourcePath))
             : File::put($localPath, Storage::disk($this->sourceDisk)->get($this->sourcePath));
+
+         if (File::size($localPath) === 0) {
+            throw new \Exception("Backup '{$this->sourcePath}' on disk '{$this->sourceDisk}' is empty.");
+         }
 
          if ($this->saveCopyDisk) {
             ConsoleFeedback::info("Caching a copy to local disk '{$this->saveCopyDisk}'...");

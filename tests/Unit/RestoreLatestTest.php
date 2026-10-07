@@ -37,3 +37,39 @@ it('restores the latest backup from a local disk', function () {
    File::delete($databasePath);
    File::deleteDirectory($root);
 });
+
+it('aborts before wiping when the backup cannot be read', function (string $backupPath, ?string $contents, string $reason) {
+   $root = __DIR__ . '/../temp/restore-unreadable';
+   File::deleteDirectory($root);
+   File::ensureDirectoryExists($root . '/easy-backups/database');
+
+   if ($contents !== null) {
+      file_put_contents($root . '/' . $backupPath, $contents);
+   }
+
+   config()->set('filesystems.disks.restore-unreadable', ['driver' => 'local', 'root' => $root]);
+   $databasePath = $this->setupTemporarySqliteDatabase('restore-unreadable.sqlite');
+   DB::connection('sqlite_test')->statement('CREATE TABLE existing_data (id INTEGER)');
+
+   $restore = fn() => Restorer::database()
+      ->fromDisk('restore-unreadable')
+      ->fromPath($backupPath)
+      ->fromDir('easy-backups/database')
+      ->toDatabase('sqlite_test')
+      ->run();
+
+   expect($restore)->toThrow(\Exception::class, $reason);
+
+   $tables = collect(DB::connection('sqlite_test')->select("SELECT name FROM sqlite_master WHERE type = 'table'"))
+      ->pluck('name')
+      ->all();
+
+   expect($tables)->toBe(['existing_data']);
+
+   DB::purge('sqlite_test');
+   File::delete($databasePath);
+   File::deleteDirectory($root);
+})->with([
+   'missing file' => ['easy-backups/database/db-dump_missing.sql', null, 'not found'],
+   'empty file' => ['easy-backups/database/db-dump_empty.sql', '', 'is empty'],
+]);
