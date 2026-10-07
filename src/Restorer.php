@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Aaix\LaravelEasyBackups;
 
+use Aaix\LaravelEasyBackups\Services\BackupInventoryService;
 use Aaix\LaravelEasyBackups\Services\PathGenerator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
@@ -130,27 +131,21 @@ final class Restorer
 
    public static function getRecentBackups(string $disk, string $directory, int $count = 30): Collection
    {
-      $storageDisk = Storage::disk($disk);
+      $localRoot = config("filesystems.disks.{$disk}.driver") === 'local' ? Storage::disk($disk)->path('') : '';
 
-      return collect($storageDisk->files($directory))
-         ->filter(fn(string $file) => Str::endsWith($file, ['.zip', '.sql', '.tar', '.gz', '.zst']))
-         ->mapWithKeys(fn(string $file) => [$file => $storageDisk->lastModified($file)])
-         ->sortDesc()
+      return app(BackupInventoryService::class)
+         ->list($disk, $directory)
          ->take($count)
-         ->map(function (int $timestamp, string $file) use ($storageDisk): array {
-            $extension = pathinfo($file, PATHINFO_EXTENSION);
-
-            return [
-               'path' => $file,
-               'label' => sprintf(
-                  '[%s] %s (%s, %s)',
-                  strtoupper($extension),
-                  basename($file),
-                  self::formatSize($storageDisk->size($file)),
-                  now()->createFromTimestamp($timestamp)->diffForHumans()
-               ),
-            ];
-         });
+         ->map(fn(array $entry): array => [
+            'path' => Str::chopStart($entry['path'], $localRoot),
+            'label' => sprintf(
+               '[%s] %s (%s, %s)',
+               strtoupper(pathinfo($entry['filename'], PATHINFO_EXTENSION)),
+               $entry['filename'],
+               self::formatSize($entry['size']),
+               now()->createFromTimestamp($entry['last_modified'])->diffForHumans()
+            ),
+         ]);
    }
 
    private static function formatSize(int $bytes): string
