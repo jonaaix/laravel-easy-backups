@@ -158,12 +158,13 @@ class RestoreJob implements ShouldQueue
 
    private function findLatestBackupPath(): string
    {
-      $latest = app(BackupInventoryService::class)->findLatest($this->sourceDisk, $this->sourceDirectory);
+      $inventory = app(BackupInventoryService::class);
+      $latest = $inventory->findLatest($this->sourceDisk, $this->sourceDirectory);
 
       if (!$latest) {
          throw new \Exception("No valid backup found in path '{$this->sourceDirectory}'.");
       }
 
-      return $latest['path'];
+      return $inventory->diskRelativePath($this->sourceDisk, $latest['path']);
    }
 }

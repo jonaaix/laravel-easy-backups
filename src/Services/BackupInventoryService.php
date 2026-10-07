@@ -39,6 +39,15 @@ final class BackupInventoryService
       return $this->list($disk, $path, $recursive)->first();
    }
 
+   public function diskRelativePath(string $disk, string $path): string
+   {
+      if (config("filesystems.disks.{$disk}.driver") !== 'local') {
+         return $path;
+      }
+
+      return Str::chopStart($path, Storage::disk($disk)->path(''));
+   }
+
    public static function isBackupFile(string $filename): bool
    {
       return Str::endsWith($filename, self::BACKUP_EXTENSIONS);

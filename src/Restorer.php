@@ -7,8 +7,6 @@ namespace Aaix\LaravelEasyBackups;
 use Aaix\LaravelEasyBackups\Services\BackupInventoryService;
 use Aaix\LaravelEasyBackups\Services\PathGenerator;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 final class Restorer
 {
@@ -131,13 +129,13 @@ final class Restorer
 
    public static function getRecentBackups(string $disk, string $directory, int $count = 30): Collection
    {
-      $localRoot = config("filesystems.disks.{$disk}.driver") === 'local' ? Storage::disk($disk)->path('') : '';
+      $inventory = app(BackupInventoryService::class);
 
-      return app(BackupInventoryService::class)
+      return $inventory
          ->list($disk, $directory)
          ->take($count)
          ->map(fn(array $entry): array => [
-            'path' => Str::chopStart($entry['path'], $localRoot),
+            'path' => $inventory->diskRelativePath($disk, $entry['path']),
             'label' => sprintf(
                '[%s] %s (%s, %s)',
                strtoupper(pathinfo($entry['filename'], PATHINFO_EXTENSION)),
