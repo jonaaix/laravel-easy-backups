@@ -1,5 +1,11 @@
 # Changelog
 
+## Version v1.3.2
+- Fix N+1 in `easy-backups:db:restore`: `Restorer::getRecentBackups()` queried the modification time of every backup and the size of the 30 newest individually, one HEAD request each on S3
+- The restore selection (and `--latest` / `--force`) now reads from `BackupInventoryService`, so fetching available backups takes one request per 1000 objects
+- Fix `Restorer::database()->latest()` on local disks: the latest backup was resolved to an absolute path, so the job read nothing, imported an empty dump and still reported success (after wiping the database)
+- Restores now abort before wiping when the backup is missing on the source disk or downloads empty, instead of importing nothing and reporting success
+
 ## Version v1.3.1
 - Fix N+1 on remote disks: `BackupInventoryService` read size and modification time per file, which is one HEAD request each on S3 (`1 + 2N` roundtrips per listing)
 - Remote listings now take size and timestamp from the `ListObjectsV2` response via `listContents()` — one request per 1000 objects

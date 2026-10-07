@@ -1,5 +1,6 @@
 <?php
 
+use Aaix\LaravelEasyBackups\Restorer;
 use Aaix\LaravelEasyBackups\Services\BackupInventoryService;
 use Aaix\LaravelEasyBackups\Tests\Support\MetadataCountingAdapter;
 use Illuminate\Filesystem\FilesystemAdapter as LaravelFilesystemAdapter;
@@ -73,6 +74,49 @@ it('lists non-recursively without descending into driver subfolders', function (
 
    expect($backups->pluck('filename')->all())->toBe(['top.tar.zst']);
    expect($counting->metadataCalls)->toBe(0);
+
+   File::deleteDirectory($root);
+});
+
+it('builds the restore selection from the listing without per-file metadata calls', function () {
+   $root = __DIR__ . '/../temp/restore-listing';
+   File::deleteDirectory($root);
+
+   $counting = registerCountingDisk($root);
+
+   $backupDir = $root . '/production/db-backup/mariadb';
+   File::ensureDirectoryExists($backupDir);
+
+   foreach ([['old.tar.gz', 2048, 300], ['new.tar.gz', 1024, 100]] as [$name, $bytes, $agoSeconds]) {
+      $path = $backupDir . '/db-dump_' . $name;
+      file_put_contents($path, str_repeat('x', $bytes));
+      touch($path, time() - $agoSeconds);
+   }
+
+   $backups = Restorer::getRecentBackups('counting', 'production/db-backup/mariadb');
+
+   expect($counting->metadataCalls)->toBe(0);
+   expect($backups->pluck('path')->all())->toBe([
+      'production/db-backup/mariadb/db-dump_new.tar.gz',
+      'production/db-backup/mariadb/db-dump_old.tar.gz',
+   ]);
+   expect($backups->first()['label'])->toStartWith('[GZ] db-dump_new.tar.gz (1 KB, ');
+
+   File::deleteDirectory($root);
+});
+
+it('returns disk-relative paths for local restore selections', function () {
+   $root = __DIR__ . '/../temp/restore-listing-local';
+   File::deleteDirectory($root);
+   File::ensureDirectoryExists($root . '/easy-backups/database');
+   file_put_contents($root . '/easy-backups/database/db-dump_local.sql', 'SELECT 1;');
+
+   config()->set('filesystems.disks.restore-local', ['driver' => 'local', 'root' => $root]);
+
+   $backups = Restorer::getRecentBackups('restore-local', 'easy-backups/database');
+
+   expect($backups->pluck('path')->all())->toBe(['easy-backups/database/db-dump_local.sql']);
+   expect(Storage::disk('restore-local')->exists($backups->first()['path']))->toBeTrue();
 
    File::deleteDirectory($root);
 });
