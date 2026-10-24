@@ -1,8 +1,13 @@
 <?php
 
 use Aaix\LaravelEasyBackups\Restorer;
+use Aaix\LaravelEasyBackups\Tests\Support\MetadataCountingAdapter;
+use Illuminate\Filesystem\FilesystemAdapter as LaravelFilesystemAdapter;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Storage;
+use League\Flysystem\Filesystem as Flysystem;
+use League\Flysystem\Local\LocalFilesystemAdapter;
 
 it('restores the latest backup from a local disk', function () {
    $root = __DIR__ . '/../temp/restore-latest-local';
@@ -73,3 +78,51 @@ it('aborts before wiping when the backup cannot be read', function (string $back
    'missing file' => ['easy-backups/database/db-dump_missing.sql', null, 'not found'],
    'empty file' => ['easy-backups/database/db-dump_empty.sql', '', 'is empty'],
 ]);
+
+it('aborts before wiping when the download arrives incomplete', function () {
+   $root = __DIR__ . '/../temp/restore-truncated';
+   File::deleteDirectory($root);
+   File::ensureDirectoryExists($root . '/easy-backups/database');
+   file_put_contents($root . '/easy-backups/database/db-dump_truncated.sql', 'CREATE TABLE restored (id INTEGER);');
+
+   $truncating = new class (new LocalFilesystemAdapter($root)) extends MetadataCountingAdapter {
+      public function readStream(string $path)
+      {
+         $full = stream_get_contents(parent::readStream($path));
+         $half = fopen('php://memory', 'r+b');
+         fwrite($half, substr($full, 0, intdiv(strlen($full), 2)));
+         rewind($half);
+
+         return $half;
+      }
+   };
+
+   config()->set('filesystems.disks.restore-truncated', ['driver' => 'truncating']);
+   Storage::extend('truncating', fn($app, $config) => new LaravelFilesystemAdapter(
+      new Flysystem($truncating),
+      $truncating,
+      $config
+   ));
+
+   $databasePath = $this->setupTemporarySqliteDatabase('restore-truncated.sqlite');
+   DB::connection('sqlite_test')->statement('CREATE TABLE existing_data (id INTEGER)');
+
+   $restore = fn() => Restorer::database()
+      ->fromDisk('restore-truncated')
+      ->fromPath('easy-backups/database/db-dump_truncated.sql')
+      ->fromDir('easy-backups/database')
+      ->toDatabase('sqlite_test')
+      ->run();
+
+   expect($restore)->toThrow(\Exception::class, 'downloaded incompletely');
+
+   $tables = collect(DB::connection('sqlite_test')->select("SELECT name FROM sqlite_master WHERE type = 'table'"))
+      ->pluck('name')
+      ->all();
+
+   expect($tables)->toBe(['existing_data']);
+
+   DB::purge('sqlite_test');
+   File::delete($databasePath);
+   File::deleteDirectory($root);
+});

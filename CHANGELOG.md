@@ -5,6 +5,7 @@
 - Without an interactive terminal (queue worker, cron) a single summary line is printed instead, e.g. `Downloaded 1.4 GB in 1m 18s (18.2 MB/s)`
 - Uploads now announce themselves with an `[STEP] Uploading backup to disk '…'` line
 - Restore downloads are copied in 1 MB chunks and open the source stream once instead of twice
+- Restores abort before wiping when the downloaded size does not match the size on the source disk, so a dropped connection no longer imports a truncated dump
 
 ## Version v1.3.2
 - Fix N+1 in `easy-backups:db:restore`: `Restorer::getRecentBackups()` queried the modification time of every backup and the size of the 30 newest individually, one HEAD request each on S3

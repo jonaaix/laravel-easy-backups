@@ -146,6 +146,17 @@ class RestoreJob implements ShouldQueue
       }
 
       $progress->finish();
+
+      $downloadedBytes = File::size($localPath);
+      if ($downloadedBytes !== $totalBytes) {
+         throw new \Exception(sprintf(
+            "Backup '%s' on disk '%s' downloaded incompletely (%d of %d bytes).",
+            $this->sourcePath,
+            $this->sourceDisk,
+            $downloadedBytes,
+            $totalBytes
+         ));
+      }
    }
 
    private function extractTar(string $path): string
