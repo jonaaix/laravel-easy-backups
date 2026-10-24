@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Aaix\LaravelEasyBackups\Services;
 
 use Illuminate\Support\Facades\App;
+use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Input\StringInput;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
@@ -16,6 +17,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 final class ConsoleFeedback
 {
    private static ?SymfonyStyle $io = null;
+   private static ?ConsoleOutput $output = null;
 
    public static function info(string $message): void
    {
@@ -43,6 +45,20 @@ final class ConsoleFeedback
       self::write(fn(SymfonyStyle $io) => $io->error($message));
    }
 
+   public static function newLine(): void
+   {
+      self::write(fn(SymfonyStyle $io) => $io->newLine());
+   }
+
+   public static function progressBar(int $max): ?ProgressBar
+   {
+      if (!App::runningInConsole() || !stream_isatty(self::output()->getStream())) {
+         return null;
+      }
+
+      return self::io()->createProgressBar($max);
+   }
+
    /**
     * Executes the output operation only if we are running in the console.
     */
@@ -52,11 +68,16 @@ final class ConsoleFeedback
          return;
       }
 
-      if (!self::$io) {
-         $output = new ConsoleOutput();
-         self::$io = new SymfonyStyle(new StringInput(''), $output);
-      }
+      $operation(self::io());
+   }
 
-      $operation(self::$io);
+   private static function io(): SymfonyStyle
+   {
+      return self::$io ??= new SymfonyStyle(new StringInput(''), self::output());
+   }
+
+   private static function output(): ConsoleOutput
+   {
+      return self::$output ??= new ConsoleOutput();
    }
 }
