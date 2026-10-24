@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Aaix\LaravelEasyBackups\Notifications;
 
+use Aaix\LaravelEasyBackups\Services\ByteFormatter;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -27,7 +28,7 @@ class BackupSucceededNotification extends Notification
    public function toMail(object $notifiable): MailMessage
    {
       $fileCount = count($this->paths);
-      $formattedSize = $this->formatSize($this->sizeInBytes);
+      $formattedSize = ByteFormatter::format($this->sizeInBytes);
       $appName = config('app.name');
 
       return (new MailMessage())
@@ -39,16 +40,5 @@ class BackupSucceededNotification extends Notification
          ->line("**Number of Files:** {$fileCount}")
          ->line('**Created Artefacts:**')
          ->lines(collect($this->paths)->map(fn(string $path) => '- ' . basename($path))->toArray());
-   }
-
-   private function formatSize(int $bytes): string
-   {
-      if ($bytes === 0) {
-         return '0 B';
-      }
-
-      $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-      $i = (int)floor(log($bytes, 1024));
-      return round($bytes / (1024 ** $i), 2) . ' ' . $units[$i];
    }
 }

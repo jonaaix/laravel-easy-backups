@@ -100,7 +100,7 @@ it('builds the restore selection from the listing without per-file metadata call
       'production/db-backup/mariadb/db-dump_new.tar.gz',
       'production/db-backup/mariadb/db-dump_old.tar.gz',
    ]);
-   expect($backups->first()['label'])->toStartWith('[GZ] db-dump_new.tar.gz (1 KB, ');
+   expect($backups->first()['label'])->toStartWith('[GZ] db-dump_new.tar.gz (1.00 KB, ');
 
    File::deleteDirectory($root);
 });

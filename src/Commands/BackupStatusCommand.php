@@ -6,6 +6,7 @@ namespace Aaix\LaravelEasyBackups\Commands;
 
 use Aaix\LaravelEasyBackups\Services\BackupInventoryService;
 use Aaix\LaravelEasyBackups\Services\BackupStatisticsService;
+use Aaix\LaravelEasyBackups\Services\ByteFormatter;
 use Aaix\LaravelEasyBackups\Services\PathGenerator;
 use Aaix\LaravelEasyBackups\Services\ScheduleInspector;
 use Illuminate\Console\Command;
@@ -144,7 +145,7 @@ class BackupStatusCommand extends Command
          '%d backup%s · %s',
          $backups->count(),
          $backups->count() === 1 ? '' : 's',
-         $this->formatSize((int) $backups->sum('size'))
+         ByteFormatter::format((int) $backups->sum('size'))
       ));
 
       $this->renderRecent($backups);
@@ -169,7 +170,7 @@ class BackupStatusCommand extends Command
    private function renderRecent(Collection $backups): void
    {
       $recent = $backups->take(self::RECENT_LIMIT)->values();
-      $sizes = $recent->map(fn(array $entry) => $this->formatSize((int) $entry['size']))->all();
+      $sizes = $recent->map(fn(array $entry) => ByteFormatter::format((int) $entry['size']))->all();
       $width = max(array_map('strlen', $sizes));
 
       $rows = $recent->map(fn(array $entry, int $index) => [
@@ -219,8 +220,8 @@ class BackupStatusCommand extends Command
       $deviation = $anomaly['deviation_percent'];
       $comparison = sprintf(
          '%s vs. %s median of previous %d (%s%s%%)',
-         $this->formatSize($anomaly['latest']),
-         $this->formatSize($anomaly['median']),
+         ByteFormatter::format($anomaly['latest']),
+         ByteFormatter::format($anomaly['median']),
          $anomaly['sample_size'],
          $deviation > 0 ? '+' : '',
          $deviation
@@ -249,7 +250,7 @@ class BackupStatusCommand extends Command
       $this->signal(self::LEVEL_OK, 'Growth', sprintf(
          '~%s backups/month · ~%s/month gross, before retention',
          $growth['backups_per_month'],
-         $this->formatSize($growth['bytes_per_month'])
+         ByteFormatter::format($growth['bytes_per_month'])
       ), '📈');
    }
 
@@ -285,7 +286,7 @@ class BackupStatusCommand extends Command
             $policy,
             $result['count'],
             $result['count'] === 1 ? '' : 's',
-            $this->formatSize($result['size']),
+            ByteFormatter::format($result['size']),
             $this->bucketLabel($scope, (string) $directory)
          ), '🧹');
       }
@@ -381,23 +382,5 @@ class BackupStatusCommand extends Command
       }
       $parts[] = trim((string) config('easy-backups.defaults.database.remote_path', 'db-backups'), '/');
       return implode('/', array_filter($parts));
-   }
-
-   private function formatSize(int $bytes): string
-   {
-      if ($bytes < 1024) {
-         return "{$bytes} B";
-      }
-      $units = ['KB', 'MB', 'GB', 'TB'];
-      $value = $bytes / 1024;
-      $unit = 'KB';
-      foreach ($units as $u) {
-         $unit = $u;
-         if ($value < 1024) {
-            break;
-         }
-         $value /= 1024;
-      }
-      return number_format($value, 2) . " {$unit}";
    }
 }

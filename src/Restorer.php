@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Aaix\LaravelEasyBackups;
 
 use Aaix\LaravelEasyBackups\Services\BackupInventoryService;
+use Aaix\LaravelEasyBackups\Services\ByteFormatter;
 use Aaix\LaravelEasyBackups\Services\PathGenerator;
 use Illuminate\Support\Collection;
 
@@ -140,21 +141,9 @@ final class Restorer
                '[%s] %s (%s, %s)',
                strtoupper(pathinfo($entry['filename'], PATHINFO_EXTENSION)),
                $entry['filename'],
-               self::formatSize($entry['size']),
+               ByteFormatter::format($entry['size']),
                now()->createFromTimestamp($entry['last_modified'])->diffForHumans()
             ),
          ]);
-   }
-
-   private static function formatSize(int $bytes): string
-   {
-      $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-      $i = 0;
-      $size = (float) $bytes;
-      while ($size >= 1024 && $i < 4) {
-         $size /= 1024;
-         $i++;
-      }
-      return round($size, 2) . ' ' . $units[$i];
    }
 }

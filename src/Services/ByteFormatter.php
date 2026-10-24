@@ -10,14 +10,18 @@ final class ByteFormatter
 
    public static function format(int|float $bytes): string
    {
-      $size = (float) $bytes;
-      $unit = 0;
+      if ($bytes < 1024) {
+         return (int) $bytes . ' B';
+      }
+
+      $size = $bytes / 1024;
+      $unit = 1;
 
       while ($size >= 1024 && $unit < count(self::UNITS) - 1) {
          $size /= 1024;
          $unit++;
       }
 
-      return round($size, 2) . ' ' . self::UNITS[$unit];
+      return number_format($size, 2) . ' ' . self::UNITS[$unit];
    }
 }

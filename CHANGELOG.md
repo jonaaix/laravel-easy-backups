@@ -1,5 +1,9 @@
 # Changelog
 
+## Version v1.4.1
+- Format byte sizes in one place (`ByteFormatter`) instead of five private copies
+- Sizes now always show two decimals everywhere (`1.50 MB`); the restore selection and the success notification previously rounded (`1.5 MB`)
+
 ## Version v1.4.0
 - Show transfer progress when downloading a backup in `easy-backups:db:restore` and when uploading one in `easy-backups:db:create`: transferred / total size, percent and speed
 - Without an interactive terminal (queue worker, cron) a single summary line is printed instead, e.g. `Downloaded 1.4 GB in 1m 18s (18.2 MB/s)`

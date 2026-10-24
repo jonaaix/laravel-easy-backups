@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Aaix\LaravelEasyBackups\Commands;
 
 use Aaix\LaravelEasyBackups\Services\BackupInventoryService;
+use Aaix\LaravelEasyBackups\Services\ByteFormatter;
 use Aaix\LaravelEasyBackups\Services\PathGenerator;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
@@ -57,7 +58,7 @@ class ListDatabaseBackupsCommand extends Command
 
       $rows = $backups->take($limit)->map(fn(array $entry) => [
          'filename' => $entry['filename'],
-         'size' => $this->formatSize($entry['size']),
+         'size' => ByteFormatter::format($entry['size']),
          'age' => Carbon::createFromTimestamp($entry['last_modified'])->diffForHumans(),
          'created' => Carbon::createFromTimestamp($entry['last_modified'])->format('Y-m-d H:i:s'),
          'format' => $this->detectFormat($entry['filename']),
@@ -67,7 +68,7 @@ class ListDatabaseBackupsCommand extends Command
 
       $total = $backups->count();
       $shown = min($total, $limit);
-      $totalSize = $this->formatSize($backups->sum('size'));
+      $totalSize = ByteFormatter::format($backups->sum('size'));
 
       $this->newLine();
       $this->line(" Showing <comment>{$shown}</comment> of <comment>{$total}</comment> backup(s). Combined size: <comment>{$totalSize}</comment>.");
@@ -89,24 +90,6 @@ class ListDatabaseBackupsCommand extends Command
       }
       $parts[] = trim((string) config('easy-backups.defaults.database.remote_path', 'db-backups'), '/');
       return implode('/', array_filter($parts));
-   }
-
-   private function formatSize(int $bytes): string
-   {
-      if ($bytes < 1024) {
-         return "{$bytes} B";
-      }
-      $units = ['KB', 'MB', 'GB', 'TB'];
-      $value = $bytes / 1024;
-      $unit = 'KB';
-      foreach ($units as $u) {
-         $unit = $u;
-         if ($value < 1024) {
-            break;
-         }
-         $value /= 1024;
-      }
-      return number_format($value, 2) . " {$unit}";
    }
 
    private function detectFormat(string $filename): string

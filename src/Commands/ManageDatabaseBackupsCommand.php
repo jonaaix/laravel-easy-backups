@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Aaix\LaravelEasyBackups\Commands;
 
 use Aaix\LaravelEasyBackups\Services\BackupInventoryService;
+use Aaix\LaravelEasyBackups\Services\ByteFormatter;
 use Aaix\LaravelEasyBackups\Services\PathGenerator;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
@@ -79,7 +80,7 @@ class ManageDatabaseBackupsCommand extends Command
          $entry['path'] => sprintf(
             '%s  (%s, %s)',
             $entry['filename'],
-            $this->formatSize($entry['size']),
+            ByteFormatter::format($entry['size']),
             Carbon::createFromTimestamp($entry['last_modified'])->diffForHumans()
          ),
       ])->all();
@@ -101,7 +102,7 @@ class ManageDatabaseBackupsCommand extends Command
       $totalSize = $backups->filter(fn(array $e) => in_array($e['path'], $selected))->sum('size');
 
       $this->newLine();
-      $this->warn("You are about to delete {$count} backup(s) ({$this->formatSize($totalSize)}) from disk '{$disk}':");
+      $this->warn("You are about to delete {$count} backup(s) ({ByteFormatter::format($totalSize)}) from disk '{$disk}':");
       foreach ($selected as $path) {
          $this->line('  - ' . basename($path));
       }
@@ -135,14 +136,14 @@ class ManageDatabaseBackupsCommand extends Command
    {
       $rows = $backups->map(fn(array $entry) => [
          'filename' => $entry['filename'],
-         'size' => $this->formatSize($entry['size']),
+         'size' => ByteFormatter::format($entry['size']),
          'age' => Carbon::createFromTimestamp($entry['last_modified'])->diffForHumans(),
          'created' => Carbon::createFromTimestamp($entry['last_modified'])->format('Y-m-d H:i:s'),
       ])->all();
 
       $this->table(['Filename', 'Size', 'Age', 'Created'], $rows);
 
-      $totalSize = $this->formatSize($backups->sum('size'));
+      $totalSize = ByteFormatter::format($backups->sum('size'));
       $this->line(" <comment>{$backups->count()}</comment> backup(s), combined size: <comment>{$totalSize}</comment>.");
       $this->newLine();
    }
@@ -155,23 +156,5 @@ class ManageDatabaseBackupsCommand extends Command
       }
       $parts[] = trim((string) config('easy-backups.defaults.database.remote_path', 'db-backups'), '/');
       return implode('/', array_filter($parts));
-   }
-
-   private function formatSize(int $bytes): string
-   {
-      if ($bytes < 1024) {
-         return "{$bytes} B";
-      }
-      $units = ['KB', 'MB', 'GB', 'TB'];
-      $value = $bytes / 1024;
-      $unit = 'KB';
-      foreach ($units as $u) {
-         $unit = $u;
-         if ($value < 1024) {
-            break;
-         }
-         $value /= 1024;
-      }
-      return number_format($value, 2) . " {$unit}";
    }
 }
