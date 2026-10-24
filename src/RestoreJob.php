@@ -10,6 +10,7 @@ use Aaix\LaravelEasyBackups\Events\RestoreSucceeded;
 use Aaix\LaravelEasyBackups\Services\BackupInventoryService;
 use Aaix\LaravelEasyBackups\Services\ConsoleFeedback;
 use Aaix\LaravelEasyBackups\Services\PathGenerator;
+use Aaix\LaravelEasyBackups\Services\TransferProgress;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -18,11 +19,14 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use League\Flysystem\UnableToRetrieveMetadata;
 use Throwable;
 
 class RestoreJob implements ShouldQueue
 {
    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+   private const DOWNLOAD_CHUNK_BYTES = 1024 * 1024;
 
    private string $tempDirectory;
 
@@ -53,13 +57,7 @@ class RestoreJob implements ShouldQueue
 
          // Step 1: Download
          ConsoleFeedback::step("Downloading backup from disk '{$this->sourceDisk}'...");
-         if (!Storage::disk($this->sourceDisk)->exists($this->sourcePath)) {
-            throw new \Exception("Backup '{$this->sourcePath}' not found on disk '{$this->sourceDisk}'.");
-         }
-
-         Storage::disk($this->sourceDisk)->readStream($this->sourcePath)
-            ? File::put($localPath, Storage::disk($this->sourceDisk)->readStream($this->sourcePath))
-            : File::put($localPath, Storage::disk($this->sourceDisk)->get($this->sourcePath));
+         $this->download($localPath);
 
          if (File::size($localPath) === 0) {
             throw new \Exception("Backup '{$this->sourcePath}' on disk '{$this->sourceDisk}' is empty.");
@@ -111,6 +109,53 @@ class RestoreJob implements ShouldQueue
          if (File::isDirectory($this->tempDirectory)) {
             File::deleteDirectory($this->tempDirectory);
          }
+      }
+   }
+
+   private function download(string $localPath): void
+   {
+      $disk = Storage::disk($this->sourceDisk);
+
+      try {
+         $totalBytes = $disk->size($this->sourcePath);
+      } catch (UnableToRetrieveMetadata $e) {
+         throw new \Exception("Backup '{$this->sourcePath}' not found on disk '{$this->sourceDisk}'.", previous: $e);
+      }
+
+      $progress = TransferProgress::start('Downloaded', $totalBytes);
+      $source = $disk->readStream($this->sourcePath);
+
+      if (!$source) {
+         File::put($localPath, $disk->get($this->sourcePath));
+         $progress->advance(File::size($localPath));
+         $progress->finish();
+         return;
+      }
+
+      $target = fopen($localPath, 'wb');
+
+      try {
+         while (($copied = stream_copy_to_stream($source, $target, self::DOWNLOAD_CHUNK_BYTES)) > 0) {
+            $progress->advance($copied);
+         }
+      } finally {
+         fclose($target);
+         if (is_resource($source)) {
+            fclose($source);
+         }
+      }
+
+      $progress->finish();
+
+      $downloadedBytes = File::size($localPath);
+      if ($downloadedBytes !== $totalBytes) {
+         throw new \Exception(sprintf(
+            "Backup '%s' on disk '%s' downloaded incompletely (%d of %d bytes).",
+            $this->sourcePath,
+            $this->sourceDisk,
+            $downloadedBytes,
+            $totalBytes
+         ));
       }
    }
 

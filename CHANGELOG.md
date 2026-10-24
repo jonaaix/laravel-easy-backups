@@ -1,5 +1,12 @@
 # Changelog
 
+## Version v1.4.0
+- Show transfer progress when downloading a backup in `easy-backups:db:restore` and when uploading one in `easy-backups:db:create`: transferred / total size, percent and speed
+- Without an interactive terminal (queue worker, cron) a single summary line is printed instead, e.g. `Downloaded 1.4 GB in 1m 18s (18.2 MB/s)`
+- Uploads now announce themselves with an `[STEP] Uploading backup to disk '…'` line
+- Restore downloads are copied in 1 MB chunks and open the source stream once instead of twice
+- Restores abort before wiping when the downloaded size does not match the size on the source disk, so a dropped connection no longer imports a truncated dump
+
 ## Version v1.3.2
 - Fix N+1 in `easy-backups:db:restore`: `Restorer::getRecentBackups()` queried the modification time of every backup and the size of the 30 newest individually, one HEAD request each on S3
 - The restore selection (and `--latest` / `--force`) now reads from `BackupInventoryService`, so fetching available backups takes one request per 1000 objects
