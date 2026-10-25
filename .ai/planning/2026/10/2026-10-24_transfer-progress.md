@@ -13,8 +13,8 @@ Done when both transfers report progress, existing restore/backup tests pass and
 - [x] Tests, TTY check, changelog
 
 ## State
-All milestones done on branch `feat/transfer-progress`. The bar was checked in a pseudo-TTY (0 % → 100 %) with
-local disks only; mid-transfer redraws and the upload behaviour against a real S3 bucket are not yet observed.
+Released in v1.4.0. The bar was checked in a pseudo-TTY (0 % → 100 %) with local disks only; mid-transfer
+redraws and the upload behaviour against a real S3 bucket are not yet observed.
 
 ## Decisions
 - Upload progress is the high-water mark of the read position, not the sum of bytes read. The S3 SDK reads the body
@@ -22,7 +22,6 @@ local disks only; mid-transfer redraws and the upload behaviour against a real S
   The high-water mark leads the real network transfer by at most concurrency × part size.
 - Small single-part S3 uploads (< 16 MB) jump to 100 % during checksumming; accepted, they finish in seconds.
 - The download's existence check reads the size instead (`size()` instead of `exists()`), so the total costs no extra request.
-- `ByteFormatter` is used by new code only; the five existing private `formatSize()` copies stay until a separate cleanup.
 
 ## Open
 - none
