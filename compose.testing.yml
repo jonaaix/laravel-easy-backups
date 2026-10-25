@@ -8,6 +8,11 @@ services:
             MYSQL_DATABASE: test
         volumes:
             - ./tests/temp:/app/temp
+        healthcheck:
+            test: ['CMD', 'mysqladmin', 'ping', '-h', '127.0.0.1', '--protocol=tcp', '-uroot', '-ppassword']
+            interval: 2s
+            timeout: 5s
+            retries: 60
 
     mariadb_test:
         image: mariadb:lts
@@ -18,6 +23,11 @@ services:
             MYSQL_DATABASE: test
         volumes:
             - ./tests/temp:/app/temp
+        healthcheck:
+            test: ['CMD', 'mariadb-admin', 'ping', '-h', '127.0.0.1', '--protocol=tcp', '-uroot', '-ppassword']
+            interval: 2s
+            timeout: 5s
+            retries: 60
 
     pgsql_test:
         image: postgres:15
@@ -29,3 +39,8 @@ services:
             POSTGRES_USER: user
         volumes:
             - ./tests/temp:/app/temp
+        healthcheck:
+            test: ['CMD', 'pg_isready', '-h', '127.0.0.1', '-U', 'user', '-d', 'test']
+            interval: 2s
+            timeout: 5s
+            retries: 60

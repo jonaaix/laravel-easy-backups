@@ -25,14 +25,6 @@ chmod 777 tests/temp
 echo "Starting Docker containers for testing..."
 docker compose -f compose.testing.yml up -d --wait
 
-echo "Waiting for databases to be ready..."
-# Loop 10 times, waiting for the database to be ready
-for i in {10..1}; do
-   echo "$i..."
-   sleep 1
-done
-
-
 # Run the tests
 echo ""
 echo "Running tests..."
