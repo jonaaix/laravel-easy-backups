@@ -27,6 +27,12 @@ jobs:
                         testbench: 10.*
                         phpunit: 12.*
 
+                    # Test Laravel 13
+                    -   laravel: 13.*
+                        php: 8.5
+                        testbench: 11.*
+                        phpunit: 12.*
+
         name: P${{ matrix.php }} - L${{ matrix.laravel }}
 
         steps:
